@@ -20,7 +20,7 @@ function CheckIcon() {
 
 function TaskCard({ task }: { task: Task }) {
   const overdue = !task.done && task.dueDate !== null && isOverdue(task.dueDate);
-  const queued = !task.done && ["queued", "not started"].includes(task.status.toLowerCase());
+  const queued = !task.done && task.status.toLowerCase() === "queued";
 
   return (
     <li className="rounded-2xl border border-line bg-white p-3.5 sm:p-4">
