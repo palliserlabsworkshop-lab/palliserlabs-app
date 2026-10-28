@@ -204,8 +204,10 @@ export async function authenticateClient(email: string, password: string): Promi
     candidates = await queryAll(ds, filter);
     if (candidates.length) break;
   }
-  // Unusual Email property types (e.g. formula) can't be filtered on — match in code instead.
-  if (!equalsFilter(ds.schema, CLIENT_PROPS.email, wanted)) candidates = await queryAll(ds);
+  // Notion's "equals" may be case-sensitive (Jane@Co.com vs jane@co.com), and some property
+  // types (e.g. formula) can't be filtered on — fall back to matching in code. This only
+  // runs on the failure path, which is already throttled.
+  if (!candidates.length) candidates = await queryAll(ds);
 
   for (const page of candidates) {
     if (getText(page, CLIENT_PROPS.email).toLowerCase() !== wanted) continue;
@@ -350,10 +352,19 @@ export async function getComments(clientId: string): Promise<PortalComment[]> {
 export const MAX_COMMENT_LENGTH = 2000; // Notion's per-text-object limit
 
 export async function addComment(client: ClientProfile, text: string): Promise<void> {
-  await notion().comments.create({
+  const base = {
     parent: { page_id: client.id },
-    rich_text: [{ type: "text", text: { content: text.slice(0, MAX_COMMENT_LENGTH) } }],
+    rich_text: [{ type: "text" as const, text: { content: text.slice(0, MAX_COMMENT_LENGTH) } }],
+  };
+  try {
     // Shows the client's name as the author in Notion instead of the integration's.
-    display_name: { type: "custom", custom: { name: client.name || client.email || "Client" } },
-  });
+    await notion().comments.create({
+      ...base,
+      display_name: { type: "custom", custom: { name: client.name || client.email || "Client" } },
+    });
+  } catch (error) {
+    // If the workspace rejects a custom author name, still deliver the comment.
+    if (!isNotionClientError(error) || error.code !== APIErrorCode.ValidationError) throw error;
+    await notion().comments.create(base);
+  }
 }

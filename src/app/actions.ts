@@ -18,8 +18,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   if (!/^\d{4}$/.test(password)) return { error: "Your App Password is 4 digits.", email };
 
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const keys = [`email:${email.toLowerCase()}`, `ip:${ip}`];
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const keys = [`email:${email.toLowerCase()}`, ...(ip ? [`ip:${ip}`] : [])];
   if (keys.some(isLimited)) {
     return { error: "Too many attempts. Please wait 15 minutes and try again.", email };
   }
