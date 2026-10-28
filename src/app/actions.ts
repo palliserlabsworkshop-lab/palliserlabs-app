@@ -2,7 +2,8 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { authenticateClient, createProject, getClient } from "@/lib/notion";
+import { approveVideo, authenticateClient, createProject, getClient, requestTweaks } from "@/lib/notion";
+import { TWEAK_AREAS } from "@/lib/review";
 import { isoDateFromToday, validateBrief, type BriefErrors } from "@/lib/brief";
 import { clearFailures, isLimited, recordFailure } from "@/lib/rate-limit";
 import { createSession, destroySession, getSessionClientId } from "@/lib/session";
@@ -67,4 +68,32 @@ export async function submitProject(input: Record<string, unknown>): Promise<Pro
     return { formError: "We couldn’t send your project. Please try again in a moment." };
   }
   return { ok: true };
+}
+
+export type ReviewState = { ok?: boolean; error?: string };
+
+/** Client approves a video that's Ready for review. Ownership and state are checked in the Notion layer. */
+export async function approveVideoAction(taskId: string): Promise<ReviewState> {
+  const clientId = await getSessionClientId();
+  const client = clientId ? await getClient(clientId) : null;
+  if (!client) redirect("/login");
+  return approveVideo(client, taskId);
+}
+
+/** Client asks for changes on a video that's Ready for review. */
+export async function requestTweaksAction(
+  taskId: string,
+  input: { areas?: unknown; details?: unknown; timestamp?: unknown },
+): Promise<ReviewState> {
+  const clientId = await getSessionClientId();
+  const client = clientId ? await getClient(clientId) : null;
+  if (!client) redirect("/login");
+
+  const areas = Array.isArray(input.areas)
+    ? input.areas.filter((a): a is string => typeof a === "string" && TWEAK_AREAS.includes(a)).slice(0, TWEAK_AREAS.length)
+    : [];
+  const details = typeof input.details === "string" ? input.details.trim().slice(0, 1500) : "";
+  const timestamp = typeof input.timestamp === "string" ? input.timestamp.trim().slice(0, 40) : "";
+  if (!details) return { error: "Tell us what you’d like changed." };
+  return requestTweaks(client, taskId, { areas, details, timestamp });
 }

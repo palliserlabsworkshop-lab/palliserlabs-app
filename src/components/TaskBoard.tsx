@@ -13,12 +13,16 @@ function CalendarIcon() {
   );
 }
 
+const linkPill =
+  "pressable inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-[0.7rem] font-bold text-foreground hover:bg-foreground hover:text-white";
+
 function TaskCard({ task }: { task: Task }) {
   const kind = statusKind(task.status, task.done);
   const overdue = !task.done && task.dueDate !== null && isOverdue(task.dueDate);
+  const showDownload = task.done && Boolean(task.finalVideo);
 
-  const body = (
-    <>
+  return (
+    <li className="card relative overflow-hidden py-3.5 pl-4 pr-3.5 sm:py-4 sm:pl-5 sm:pr-4">
       {/* Status bar — echoes the rounded bars of the Palliser Labs mark */}
       <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${STATUS_STYLES[kind].rail}`} aria-hidden />
       <p
@@ -41,36 +45,33 @@ function TaskCard({ task }: { task: Task }) {
         ) : (
           !task.done && <span className="text-[0.72rem] text-muted">No due date</span>
         )}
+        {task.downloadedOn && (
+          <span className="text-[0.72rem] font-bold text-success">✓ Downloaded {formatDueDate(task.downloadedOn)}</span>
+        )}
       </div>
-      {task.hasBrief && (
-        <span className="mt-3 inline-flex items-center gap-1 text-[0.72rem] font-bold text-foreground">
-          View brief
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
-      )}
-    </>
-  );
-
-  const card = "card relative block overflow-hidden py-3.5 pl-4 pr-3.5 sm:py-4 sm:pl-5 sm:pr-4";
-  return (
-    <li>
-      {task.hasBrief ? (
-        <Link
-          href={`/dashboard/projects/${task.id}`}
-          className={`${card} pressable liftable`}
-        >
-          {body}
-        </Link>
-      ) : (
-        <div className={card}>{body}</div>
+      {(task.hasBrief || showDownload) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {showDownload && (
+            // Plain <a>: the route records the download, so it must never be prefetched.
+            <a href={`/api/videos/${task.id}/download`} target="_blank" rel="noopener noreferrer" className={linkPill}>
+              Download
+            </a>
+          )}
+          {task.hasBrief && (
+            <Link href={`/dashboard/projects/${task.id}`} prefetch={false} className={linkPill}>
+              View brief
+              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+          )}
+        </div>
       )}
     </li>
   );
 }
 
-function Column({ title, tasks, empty }: { title: string; tasks: Task[]; empty: string }) {
+function Column({ title, tasks, empty, children }: { title: string; tasks: Task[]; empty: string; children?: React.ReactNode }) {
   return (
     <div className="min-w-0">
       <div className="mb-3 flex items-baseline gap-2 px-1">
@@ -88,41 +89,51 @@ function Column({ title, tasks, empty }: { title: string; tasks: Task[]; empty: 
           {empty}
         </p>
       )}
+      {children}
     </div>
   );
 }
 
 /** Segmented progress bar: one rounded segment per status, sized by count. */
 export function TaskSummary({ tasks }: { tasks: Task[] }) {
-  if (!tasks.length) return null;
-  const counts = { queued: 0, in_progress: 0, done: 0, other: 0 };
-  for (const t of tasks) counts[statusKind(t.status, t.done)]++;
-  const segments = (["queued", "in_progress", "done", "other"] as const).filter((k) => counts[k] > 0);
-  const legend: { kind: keyof typeof counts; label: string }[] = [
+  const visible = tasks.filter((t) => !t.archived);
+  if (!visible.length) return null;
+  const counts = { queued: 0, in_progress: 0, review: 0, done: 0 };
+  for (const t of visible) {
+    const k = statusKind(t.status, t.done);
+    if (k === "queued") counts.queued++;
+    else if (k === "review") counts.review++;
+    else if (k === "done") counts.done++;
+    else counts.in_progress++; // in progress, tweaks, anything custom
+  }
+  const legend = [
     { kind: "queued", label: "Queued" },
     { kind: "in_progress", label: "In Progress" },
+    { kind: "review", label: "To review" },
     { kind: "done", label: "Done" },
-  ];
+  ] as const;
 
   return (
     <div className="card mb-6 p-4 sm:p-5">
       <div
         className="flex h-2.5 gap-1"
         role="img"
-        aria-label={`${counts.done} of ${tasks.length} tasks done, ${counts.in_progress} in progress, ${counts.queued} queued`}
+        aria-label={`${counts.done} of ${visible.length} done, ${counts.review} to review, ${counts.in_progress} in progress, ${counts.queued} queued`}
       >
-        {segments.map((k, i) => (
-          <span
-            key={k}
-            className={`h-full origin-left animate-grow rounded-full ${STATUS_STYLES[k].rail}`}
-            style={{ flexGrow: counts[k], flexBasis: 0, minWidth: "0.625rem", animationDelay: `${200 + i * 120}ms` }}
-          />
-        ))}
+        {legend
+          .filter(({ kind }) => counts[kind] > 0)
+          .map(({ kind }, i) => (
+            <span
+              key={kind}
+              className={`h-full origin-left animate-grow rounded-full ${STATUS_STYLES[kind].rail}`}
+              style={{ flexGrow: counts[kind], flexBasis: 0, minWidth: "0.625rem", animationDelay: `${200 + i * 120}ms` }}
+            />
+          ))}
       </div>
-      <dl className="mt-3.5 grid grid-cols-3 gap-2">
+      <dl className="mt-3.5 grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-4">
         {legend.map(({ kind, label }) => (
           <div key={kind} className="min-w-0">
-            <dt className="flex items-center gap-1.5 truncate text-[0.72rem] text-muted">
+            <dt className="flex items-center gap-1.5 truncate text-[0.7rem] text-muted">
               <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_STYLES[kind].rail}`} aria-hidden />
               {label}
             </dt>
@@ -134,15 +145,42 @@ export function TaskSummary({ tasks }: { tasks: Task[] }) {
   );
 }
 
+/**
+ * Board for everything not in the Review section: Queued / In progress on the left,
+ * finished work on the right, and older finished work tucked into a collapsed Archive.
+ */
 export function TaskBoard({ tasks }: { tasks: Task[] }) {
-  // Queued and In Progress tasks share the left column; each card's chip says which.
-  const active = tasks.filter((t) => !t.done);
-  const done = tasks.filter((t) => t.done).reverse();
+  const active = tasks.filter((t) => !t.done && !t.archived);
+  const done = tasks.filter((t) => t.done && !t.archived).reverse();
+  const archived = tasks.filter((t) => t.archived).reverse();
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-5">
       <Column title="In Progress" tasks={active} empty="Nothing in progress right now." />
-      <Column title="Completed" tasks={done} empty="Completed tasks will appear here." />
+      <Column title="Completed" tasks={done} empty="Finished work will appear here.">
+        {archived.length > 0 && (
+          <details className="group mt-3">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-1 text-[0.75rem] font-bold text-muted hover:text-foreground">
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3 w-3 transition-transform duration-300 group-open:rotate-90"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden
+              >
+                <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Archive ({archived.length})
+            </summary>
+            <ul className="mt-1 space-y-2.5 opacity-80">
+              {archived.map((task) => (
+                <TaskCard key={task.id} task={task} />
+              ))}
+            </ul>
+          </details>
+        )}
+      </Column>
     </div>
   );
 }

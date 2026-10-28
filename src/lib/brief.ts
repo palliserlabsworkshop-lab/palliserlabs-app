@@ -47,6 +47,7 @@ export const HOOKS_MIN = 1;
 export const HOOKS_MAX = 3;
 export const HOOKS_DEFAULT = 1;
 export const MAX_REFERENCE_LINKS = 10;
+export const MAX_DRIVE_LINKS = 5;
 
 /** Maximum turnaround per video. The earliest deadline a client can pick is this far ahead. */
 export const TURNAROUND_HOURS = 24;
@@ -67,7 +68,8 @@ export function earliestDeadline(now = new Date()): string {
 export type Brief = {
   version: 1;
   projectName: string;
-  driveLink: string;
+  driveLink: string; // first footage link (kept for older briefs and the Video Link column)
+  driveLinks: string[]; // all footage links — files or folders
   format: string[];
   formatOther: string;
   purpose: string[];
@@ -128,7 +130,10 @@ export function validateBrief(
   const brief: Brief = {
     version: 1,
     projectName: str(input.projectName, 200),
-    driveLink: str(input.driveLink, 1000),
+    driveLink: "",
+    driveLinks: (Array.isArray(input.driveLinks) ? input.driveLinks : [input.driveLink])
+      .map((l) => str(l, 1000))
+      .filter(Boolean),
     format: pick(input.format, FORMAT_OPTIONS),
     formatOther: str(input.formatOther, 200),
     purpose: pick(input.purpose, PURPOSE_OPTIONS),
@@ -142,12 +147,14 @@ export function validateBrief(
       : [],
     notes: str(input.notes, 1500),
   };
+  brief.driveLink = brief.driveLinks[0] ?? "";
   if (!brief.format.includes("other")) brief.formatOther = "";
 
   const errors: BriefErrors = {};
   if (!brief.projectName) errors.projectName = "Give your project a name.";
-  if (!brief.driveLink) errors.driveLink = "Paste a Google Drive link.";
-  else if (!isDriveLink(brief.driveLink)) errors.driveLink = "This needs to be a Google Drive link (drive.google.com/…).";
+  if (!brief.driveLinks.length) errors.driveLink = "Paste a Google Drive link.";
+  else if (brief.driveLinks.length > MAX_DRIVE_LINKS) errors.driveLink = `Add up to ${MAX_DRIVE_LINKS} links.`;
+  else if (!brief.driveLinks.every(isDriveLink)) errors.driveLink = "Each link needs to be a Google Drive link (drive.google.com/…).";
   if (!brief.format.length) errors.format = "Pick at least one format.";
   else if (brief.format.includes("other") && !brief.formatOther) errors.formatOther = "Tell us which format.";
   if (!brief.purpose.length) errors.purpose = "Pick at least one purpose.";
@@ -213,7 +220,7 @@ export function formatLabels(brief: Brief): string[] {
 /** The brief as label/value rows — used for the app's brief page and the Notion page body. */
 export function briefRows(brief: Brief): { label: string; values: string[]; links?: boolean }[] {
   return [
-    { label: "Video files", values: [brief.driveLink], links: true },
+    { label: "Footage", values: brief.driveLinks, links: true },
     { label: "Needed by", values: brief.deadline ? [formatDeadline(brief.deadline)] : [] },
     { label: "Format", values: formatLabels(brief) },
     { label: "Purpose", values: labelsFor(brief.purpose, PURPOSE_OPTIONS) },

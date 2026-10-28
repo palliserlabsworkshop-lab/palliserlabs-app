@@ -7,6 +7,8 @@ import { Comments } from "@/components/Comments";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectForm } from "@/components/ProjectForm";
 import { FloatingNav } from "@/components/FloatingNav";
+import { ReviewSection } from "@/components/ReviewSection";
+import { reviewStage } from "@/lib/review";
 import { getClient, getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
 import { getSessionClientId } from "@/lib/session";
 
@@ -18,12 +20,14 @@ function Section({
   children,
   aside,
   delay = 0,
+  subtitle,
 }: {
   id: string;
   title: string;
   children: React.ReactNode;
   aside?: string;
   delay?: number;
+  subtitle?: string;
 }) {
   return (
     <section id={id} className="mt-14 animate-rise sm:mt-16" style={{ animationDelay: `${delay}ms` }}>
@@ -31,6 +35,7 @@ function Section({
         <h2 className="font-display text-[1.4rem] font-medium tracking-[-0.01em] sm:text-[1.6rem]">{title}</h2>
         {aside && <span className="text-[0.75rem] text-muted">{aside}</span>}
       </div>
+      {subtitle && <p className="-mt-2 mb-4 px-1 text-[0.85rem] text-muted">{subtitle}</p>}
       {children}
     </section>
   );
@@ -54,10 +59,16 @@ async function Dashboard() {
   ]);
 
 
+  // Videos waiting on the client (or being tweaked / ready to download) get their own section up top;
+  // the board shows everything else, so nothing appears twice.
+  const reviewTasks = tasks.filter((t) => reviewStage(t));
+  const boardTasks = tasks.filter((t) => !reviewStage(t));
+  const toReview = reviewTasks.filter((t) => reviewStage(t) === "review").length;
+
   return (
     <>
       <AutoRefresh />
-      <FloatingNav />
+      <FloatingNav showReview={reviewTasks.length > 0} reviewCount={toReview} />
       <section className="animate-rise">
         <p className="text-[0.95rem] text-muted">Welcome back,</p>
         <h1 className="mt-1 break-words font-display text-[2.5rem] font-medium leading-[1.04] tracking-[-0.03em] sm:text-[3.4rem]">
@@ -70,9 +81,24 @@ async function Dashboard() {
         )}
       </section>
 
+      {reviewTasks.length > 0 && (
+        <Section
+          id="review"
+          title={toReview ? "Ready for your review" : "Your videos"}
+          delay={60}
+          subtitle={
+            toReview
+              ? "Watch it, then approve or tell us what to change."
+              : "Tweaks underway and finished cuts ready to download."
+          }
+        >
+          <ReviewSection tasks={reviewTasks} />
+        </Section>
+      )}
+
       <Section id="tasks" title="Tasks" delay={80}>
         <TaskSummary tasks={tasks} />
-        <TaskBoard tasks={tasks} />
+        <TaskBoard tasks={boardTasks} />
       </Section>
 
       <Section id="new-project" title="New project" delay={160}>
@@ -83,7 +109,7 @@ async function Dashboard() {
         <FileList files={files} />
       </Section>
 
-      <Section id="comments" title="Comments" delay={320}>
+      <Section id="messages" title="Messages" delay={320} subtitle="Your direct line to the Palliser Labs team.">
         <Comments initial={comments ?? []} initialError={comments === null} />
       </Section>
     </>

@@ -24,7 +24,7 @@ npm run dev
 2. **Turn on the comment capabilities.** Go to notion.so/profile/integrations, open your integration, then **Capabilities**. Enable *Read content*, *Insert content*, *Read comments* and *Insert comments*. Without the comment capabilities, the Comments section shows "unavailable".
 3. **Use these property names**, or change them in `src/lib/schema.ts`:
    - Clients: `Name`, `Email`, `Company`, `Status`, `App Password`
-   - Tasks: `Task`, `Status`, `Due date`, `Client` (a relation to Clients), plus `Video Link` (URL) and `Brief Data` (Text) for portal projects. `Status` needs a `Queued` option.
+   - Tasks: `Task`, `Status`, `Due date`, `Client` (a relation to Clients), plus `Video Link` (URL) and `Brief Data` (Text) for portal projects, and `Final Video` (URL), `Revision round` (Number), `Approved on` (Date), `Downloaded on` (Date) for reviews. `Status` needs `Queued`, `Ready for review`, `Tweaks requested`, `Approved` and `Archived` options.
    - Files: `File name`, `File / URL`, `Type`, `Client` (a relation to Clients)
 
 The app reads each database's schema at runtime, so property types are flexible:
@@ -43,8 +43,18 @@ The app reads each database's schema at runtime, so property types are flexible:
   - The answers are saved in `Brief Data` as JSON option keys (e.g. `talking_head`), so the labels in `src/lib/brief.ts` can change without breaking old data.
   - A readable copy of the brief is written into the Notion page body for the editor.
   - Clients can open each project's brief from its task card in the app.
+- **Video review**: set Status to *Ready for review* with a `Final Video` link (Drive file or folder), and the video appears at the top of the client's dashboard with an embedded player.
+  - **Approve** sets *Approved* and `Approved on`.
+  - **Request changes** sets *Tweaks requested*, adds 1 to `Revision round`, and posts the request as a comment on the task page.
+  - Each video has its own feedback thread, made of page-level comments on the task.
+  - **Download** goes through `/api/videos/:id/download`, which records `Downloaded on` the first time it's clicked (it records the click, not a confirmed save) and then redirects to Drive.
+- **Archiving**: the app hides archived and finished work under a collapsed "Archive" link.
+  - Anything with Status *Archived* is hidden.
+  - Delivered videos are hidden 14 days after they're downloaded.
+  - Older Done tasks with no final video are hidden 30 days after their due date.
+  - A daily Vercel cron job (`/api/cron/archive`, see `vercel.json`) sets Status *Archived* in Notion, but only on videos whose `Downloaded on` is more than 14 days old. It never changes any other rows. It needs a `CRON_SECRET` environment variable.
 - **Files** open through `/api/files/:id`. This route checks that the file belongs to the signed-in client, then redirects to a fresh link. Notion-hosted file links expire after about 1 hour.
-- **Comments** use the client's own row-page in the Clients DB as the thread.
+- **Messages** (the general chat) use the client's own row-page in the Clients DB as the thread.
   - Comments posted in the app appear in Notion under the client's name.
   - Comments you add in Notion appear in the app within about 15 seconds, by polling.
   - Notion's API returns only open (unresolved) comments. If you resolve a thread in Notion, it disappears from the portal.

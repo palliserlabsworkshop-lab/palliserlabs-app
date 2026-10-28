@@ -13,13 +13,19 @@ import {
 } from "@notionhq/client";
 import { env, normalizeNotionId } from "./env";
 import {
+  APPROVED_STATUS,
+  ARCHIVE_AFTER_DOWNLOAD_DAYS,
+  ARCHIVED_STATUS,
   BLOCKED_CLIENT_STATUSES,
   CLIENT_PROPS,
   DONE_STATUSES,
   FILE_PROPS,
+  HIDE_DONE_AFTER_DAYS,
   NEW_PROJECT_STATUS,
   TASK_PROPS,
+  TWEAKS_STATUS,
 } from "./schema";
+import { statusKind } from "./status";
 import { briefRows, parseBrief, type Brief } from "./brief";
 
 // ---------------------------------------------------------------------------
@@ -148,6 +154,13 @@ function getDate(page: PageObjectResponse, name: string): string | null {
   return null;
 }
 
+function getNumber(page: PageObjectResponse, name: string): number | null {
+  const prop = findProp(page, name);
+  if (prop?.type === "number") return prop.number;
+  const n = Number(propText(prop));
+  return propText(prop) && Number.isFinite(n) ? n : null;
+}
+
 function readFileLink(page: PageObjectResponse, name: string): string | null {
   const prop = findProp(page, name);
   if (!prop) return null;
@@ -273,7 +286,46 @@ export type Task = {
   dueDate: string | null;
   done: boolean;
   hasBrief: boolean;
+  finalVideo: string | null;
+  revisionRound: number | null;
+  approvedOn: string | null;
+  downloadedOn: string | null;
+  /** Finished long enough ago to leave the main dashboard (shown under "Archive"). */
+  archived: boolean;
 };
+
+const DAY_MS = 86_400_000;
+const daysSince = (iso: string | null) => (iso ? (Date.now() - Date.parse(iso)) / DAY_MS : 0);
+
+function toTask(page: PageObjectResponse): Task {
+  const status = getText(page, TASK_PROPS.status) || NEW_PROJECT_STATUS;
+  const kind = statusKind(status);
+  const done = DONE_STATUSES.includes(status.toLowerCase());
+  const finalVideo = getText(page, TASK_PROPS.finalVideo) || null;
+  const downloadedOn = getDate(page, TASK_PROPS.downloadedOn);
+  const dueDate = getDate(page, TASK_PROPS.dueDate);
+  // Hide rules (app only — Notion is only written by the daily archive job, for downloaded videos):
+  //  - Status "Archived"
+  //  - a delivered video downloaded more than ARCHIVE_AFTER_DOWNLOAD_DAYS ago
+  //  - an older Done task with no final video, HIDE_DONE_AFTER_DAYS after its due date / last edit
+  const archived =
+    kind === "archived" ||
+    (done && downloadedOn !== null && daysSince(downloadedOn) > ARCHIVE_AFTER_DOWNLOAD_DAYS) ||
+    (done && !finalVideo && daysSince(dueDate ?? page.last_edited_time) > HIDE_DONE_AFTER_DAYS);
+  return {
+    id: page.id,
+    title: getText(page, TASK_PROPS.title, true) || "Untitled task",
+    status,
+    dueDate,
+    done,
+    hasBrief: Boolean(getText(page, TASK_PROPS.briefData)),
+    finalVideo,
+    revisionRound: getNumber(page, TASK_PROPS.revisionRound),
+    approvedOn: getDate(page, TASK_PROPS.approvedOn),
+    downloadedOn,
+    archived,
+  };
+}
 
 export async function getTasks(clientId: string): Promise<Task[]> {
   const ds = await dataSource(env.tasksDbId);
@@ -282,17 +334,150 @@ export async function getTasks(clientId: string): Promise<Task[]> {
     ? [{ property: dueDate, direction: "ascending" }]
     : undefined;
   const pages = await queryAll(ds, belongsToClient(resolveName(Object.keys(ds.schema), TASK_PROPS.client), clientId), sorts);
-  return pages.map((page) => {
-    const status = getText(page, TASK_PROPS.status);
-    return {
-      id: page.id,
-      title: getText(page, TASK_PROPS.title, true) || "Untitled task",
-      status: status || NEW_PROJECT_STATUS,
-      dueDate: getDate(page, TASK_PROPS.dueDate),
-      done: DONE_STATUSES.includes(status.toLowerCase()),
-      hasBrief: Boolean(getText(page, TASK_PROPS.briefData)),
-    };
+  return pages.map(toTask);
+}
+
+/** Loads one task page — only if its Client relation is this client. The ownership gate for every task action. */
+async function getOwnedTaskPage(clientId: string, taskId: string): Promise<PageObjectResponse | null> {
+  if (!/^[0-9a-f-]{32,36}$/i.test(taskId)) return null;
+  const ds = await dataSource(env.tasksDbId);
+  const pages = await queryAll(ds, belongsToClient(resolveName(Object.keys(ds.schema), TASK_PROPS.client), clientId));
+  const target = normalizeNotionId(taskId);
+  return pages.find((p) => normalizeNotionId(p.id) === target) ?? null;
+}
+
+/** Writes task properties by name, shaping each value to the column's actual type. Missing columns are skipped. */
+async function updateTask(pageId: string, values: { status?: string; dates?: Record<string, string>; numbers?: Record<string, number> }) {
+  const ds = await dataSource(env.tasksDbId);
+  const names = Object.keys(ds.schema);
+  const properties: Record<string, unknown> = {};
+  if (values.status) {
+    const name = resolveName(names, TASK_PROPS.status);
+    if (ds.schema[name] === "status") properties[name] = { status: { name: values.status } };
+    if (ds.schema[name] === "select") properties[name] = { select: { name: values.status } };
+  }
+  for (const [wanted, date] of Object.entries(values.dates ?? {})) {
+    const name = resolveName(names, wanted);
+    if (ds.schema[name] === "date") properties[name] = { date: { start: date } };
+  }
+  for (const [wanted, num] of Object.entries(values.numbers ?? {})) {
+    const name = resolveName(names, wanted);
+    if (ds.schema[name] === "number") properties[name] = { number: num };
+  }
+  if (!Object.keys(properties).length) return;
+  await notion().pages.update({
+    page_id: pageId,
+    properties: properties as Parameters<Client["pages"]["update"]>[0]["properties"],
   });
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+export type ReviewResult = { ok: true } | { ok: false; error: string };
+
+/** Explains a failed status write — usually a Status option missing in Notion. */
+function reviewError(error: unknown, statusName: string): ReviewResult {
+  if (isNotionClientError(error) && error.code === APIErrorCode.ValidationError) {
+    console.error(`Could not set Status to "${statusName}" — check that option exists in Notion.`, error);
+  } else {
+    console.error("Review update failed:", error);
+  }
+  return { ok: false, error: "We couldn’t save that just now. Please try again, or message us below." };
+}
+
+/** Client approves the cut. Only allowed while the task is Ready for review. */
+export async function approveVideo(client: ClientProfile, taskId: string): Promise<ReviewResult> {
+  const page = await getOwnedTaskPage(client.id, taskId);
+  if (!page) return { ok: false, error: "We couldn’t find that video." };
+  if (statusKind(getText(page, TASK_PROPS.status)) !== "review") {
+    return { ok: false, error: "This video isn’t waiting for review any more." };
+  }
+  try {
+    await updateTask(page.id, { status: APPROVED_STATUS, dates: { [TASK_PROPS.approvedOn]: today() } });
+  } catch (error) {
+    return reviewError(error, APPROVED_STATUS);
+  }
+  await addComment(client, "✅ Approved — thank you!", page.id).catch(() => {});
+  return { ok: true };
+}
+
+export type TweakRequest = { areas: string[]; details: string; timestamp: string };
+
+/** Client asks for changes. Moves the task to Tweaks requested and bumps the revision round. */
+export async function requestTweaks(client: ClientProfile, taskId: string, req: TweakRequest): Promise<ReviewResult> {
+  const page = await getOwnedTaskPage(client.id, taskId);
+  if (!page) return { ok: false, error: "We couldn’t find that video." };
+  if (statusKind(getText(page, TASK_PROPS.status)) !== "review") {
+    return { ok: false, error: "This video isn’t waiting for review any more." };
+  }
+  const round = (getNumber(page, TASK_PROPS.revisionRound) ?? 1) + 1;
+  try {
+    await updateTask(page.id, { status: TWEAKS_STATUS, numbers: { [TASK_PROPS.revisionRound]: round } });
+  } catch (error) {
+    return reviewError(error, TWEAKS_STATUS);
+  }
+  const lines = [
+    `✏️ Changes requested (for round ${round})`,
+    req.areas.length ? `Areas: ${req.areas.join(", ")}` : "",
+    req.timestamp ? `At: ${req.timestamp}` : "",
+    req.details,
+  ].filter(Boolean);
+  // The request is posted as a comment on the task page, so the editor sees it (and gets notified) in Notion.
+  await addComment(client, lines.join("\n"), page.id).catch((error) => console.error("Tweak comment failed:", error));
+  return { ok: true };
+}
+
+/** Returns the final video link and records the first download click. */
+export async function recordDownload(clientId: string, taskId: string): Promise<string | null> {
+  const page = await getOwnedTaskPage(clientId, taskId);
+  if (!page) return null;
+  const link = getText(page, TASK_PROPS.finalVideo);
+  if (!link) return null;
+  if (!getDate(page, TASK_PROPS.downloadedOn)) {
+    await updateTask(page.id, { dates: { [TASK_PROPS.downloadedOn]: today() } }).catch((error) =>
+      console.error("Could not record download:", error),
+    );
+  }
+  return link;
+}
+
+/** Per-video feedback thread: comments on the task's own Notion page. */
+export async function getTaskComments(clientId: string, taskId: string): Promise<PortalComment[] | null> {
+  const page = await getOwnedTaskPage(clientId, taskId);
+  return page ? getComments(page.id) : null;
+}
+
+export async function addTaskComment(client: ClientProfile, taskId: string, text: string): Promise<boolean> {
+  const page = await getOwnedTaskPage(client.id, taskId);
+  if (!page) return false;
+  await addComment(client, text, page.id);
+  return true;
+}
+
+/**
+ * Daily job: sets Status to Archived on delivered videos downloaded more than
+ * ARCHIVE_AFTER_DOWNLOAD_DAYS ago. Only rows that went through the review flow
+ * (they have "Downloaded on") are touched; nothing else in Notion is changed.
+ */
+export async function archiveDownloadedVideos(): Promise<number> {
+  const ds = await dataSource(env.tasksDbId);
+  const name = resolveName(Object.keys(ds.schema), TASK_PROPS.downloadedOn);
+  if (ds.schema[name] !== "date") return 0;
+  const cutoff = new Date(Date.now() - ARCHIVE_AFTER_DOWNLOAD_DAYS * DAY_MS).toISOString().slice(0, 10);
+  const pages = await queryAll(ds, { property: name, date: { before: cutoff } });
+  let archived = 0;
+  for (const page of pages) {
+    const kind = statusKind(getText(page, TASK_PROPS.status));
+    if (kind !== "done") continue;
+    try {
+      await updateTask(page.id, { status: ARCHIVED_STATUS });
+      archived++;
+    } catch (error) {
+      reviewError(error, ARCHIVED_STATUS);
+      break; // most likely the option is missing — no point retrying every row
+    }
+  }
+  return archived;
 }
 
 // ---------------------------------------------------------------------------
@@ -358,8 +543,8 @@ export async function createProject(client: ClientProfile, brief: Brief): Promis
     [titleName]: { title: chunkText(brief.projectName) },
     [clientName]: { relation: [{ id: client.id }] },
   };
-  if (ds.schema[linkName] === "url") properties[linkName] = { url: brief.driveLink };
-  else if (ds.schema[linkName] === "rich_text") properties[linkName] = { rich_text: chunkText(brief.driveLink) };
+  if (ds.schema[linkName] === "url") properties[linkName] = { url: brief.driveLinks[0] };
+  else if (ds.schema[linkName] === "rich_text") properties[linkName] = { rich_text: chunkText(brief.driveLinks.join("\n")) };
   if (ds.schema[dueName] === "date" && brief.deadline) properties[dueName] = { date: { start: brief.deadline } };
   if (ds.schema[briefName] === "rich_text") properties[briefName] = { rich_text: chunkText(JSON.stringify(brief)) };
 
@@ -390,23 +575,10 @@ export type Project = Task & { brief: Brief | null };
 
 /** Loads one task for the client (only found if its Client relation is this client). */
 export async function getProject(clientId: string, taskId: string): Promise<Project | null> {
-  if (!/^[0-9a-f-]{32,36}$/i.test(taskId)) return null;
-  const ds = await dataSource(env.tasksDbId);
-  const pages = await queryAll(ds, belongsToClient(resolveName(Object.keys(ds.schema), TASK_PROPS.client), clientId));
-  const target = normalizeNotionId(taskId);
-  const page = pages.find((p) => normalizeNotionId(p.id) === target);
+  const page = await getOwnedTaskPage(clientId, taskId);
   if (!page) return null;
-  const status = getText(page, TASK_PROPS.status);
   const briefJson = getText(page, TASK_PROPS.briefData);
-  return {
-    id: page.id,
-    title: getText(page, TASK_PROPS.title, true) || "Untitled task",
-    status: status || NEW_PROJECT_STATUS,
-    dueDate: getDate(page, TASK_PROPS.dueDate),
-    done: DONE_STATUSES.includes(status.toLowerCase()),
-    hasBrief: Boolean(briefJson),
-    brief: briefJson ? parseBrief(briefJson) : null,
-  };
+  return { ...toTask(page), brief: briefJson ? parseBrief(briefJson) : null };
 }
 
 // ---------------------------------------------------------------------------
@@ -469,10 +641,11 @@ function botUserId(): Promise<string> {
   return botIdPromise;
 }
 
-export async function getComments(clientId: string): Promise<PortalComment[]> {
+/** Open comments on a page. Callers must already have checked the page belongs to the signed-in client. */
+export async function getComments(pageId: string): Promise<PortalComment[]> {
   const [botId, comments] = await Promise.all([
     botUserId(),
-    collectPaginatedAPI(notion().comments.list, { block_id: clientId }),
+    collectPaginatedAPI(notion().comments.list, { block_id: pageId }),
   ]);
   return comments
     .filter(isFullComment)
@@ -493,9 +666,10 @@ export async function getComments(clientId: string): Promise<PortalComment[]> {
 
 export const MAX_COMMENT_LENGTH = 2000; // Notion's per-text-object limit
 
-export async function addComment(client: ClientProfile, text: string): Promise<void> {
+/** Posts a comment as the client. Defaults to the client's own row-page (Messages). */
+export async function addComment(client: ClientProfile, text: string, pageId = client.id): Promise<void> {
   const base = {
-    parent: { page_id: client.id },
+    parent: { page_id: pageId },
     rich_text: [{ type: "text" as const, text: { content: text.slice(0, MAX_COMMENT_LENGTH) } }],
   };
   try {

@@ -8,7 +8,28 @@ import { formatRelative } from "@/lib/format";
 const POLL_MS = 15_000;
 const MAX_LENGTH = 2000;
 
-export function Comments({ initial, initialError }: { initial: PortalComment[]; initialError?: boolean }) {
+export function Comments({
+  initial,
+  initialError,
+  endpoint = "/api/comments",
+  emptyTitle = "No messages yet.",
+  emptyHint = "Ask a question or leave feedback for the team.",
+  placeholder = "Write a message…",
+  bare = false,
+  loadOnMount = false,
+}: {
+  initial: PortalComment[];
+  initialError?: boolean;
+  /** API route for this thread — the main Messages thread or one video's feedback thread. */
+  endpoint?: string;
+  emptyTitle?: string;
+  emptyHint?: string;
+  placeholder?: string;
+  /** Render without the card frame (when nested inside another card). */
+  bare?: boolean;
+  /** Fetch straight away (for threads opened on demand, which start empty). */
+  loadOnMount?: boolean;
+}) {
   const router = useRouter();
   const [comments, setComments] = useState(initial);
   const [error, setError] = useState(initialError ? "Comments are unavailable right now." : "");
@@ -19,7 +40,7 @@ export function Comments({ initial, initialError }: { initial: PortalComment[]; 
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/comments", { cache: "no-store" });
+      const res = await fetch(endpoint, { cache: "no-store" });
       if (res.status === 401) return router.replace("/login");
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { comments: PortalComment[] };
@@ -28,7 +49,13 @@ export function Comments({ initial, initialError }: { initial: PortalComment[]; 
     } catch {
       // Keep showing the last good list; the next poll will retry.
     }
-  }, [router]);
+  }, [router, endpoint]);
+
+  useEffect(() => {
+    if (!loadOnMount) return;
+    const t = setTimeout(refresh, 0);
+    return () => clearTimeout(t);
+  }, [loadOnMount, refresh]);
 
   // Two-way sync: pick up comments added in Notion. Pauses while the tab is hidden.
   useEffect(() => {
@@ -69,7 +96,7 @@ export function Comments({ initial, initialError }: { initial: PortalComment[]; 
     setSending(true);
     setError("");
     try {
-      const res = await fetch("/api/comments", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -87,13 +114,13 @@ export function Comments({ initial, initialError }: { initial: PortalComment[]; 
   }
 
   return (
-    <div className="card overflow-hidden">
+    <div className={bare ? "overflow-hidden" : "card overflow-hidden"}>
       <div ref={listRef} className="max-h-[26rem] space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {comments.length === 0 ? (
           <p className="py-6 text-center text-sm leading-relaxed text-muted">
-            No messages yet.
+            {emptyTitle}
             <br />
-            Ask a question or leave feedback for the team.
+            {emptyHint}
           </p>
         ) : (
           comments.map((c) => (
@@ -138,7 +165,7 @@ export function Comments({ initial, initialError }: { initial: PortalComment[]; 
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(e);
             }}
-            placeholder="Write a message…"
+            placeholder={placeholder}
             className="min-h-11 flex-1 resize-none rounded-[1.375rem] border border-line bg-surface px-3.5 py-2.5 text-base leading-snug text-foreground placeholder:text-muted/70 focus:border-primary focus:bg-white focus:outline-none sm:text-[0.9rem]"
           />
           <button

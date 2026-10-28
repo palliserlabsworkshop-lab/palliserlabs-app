@@ -9,6 +9,7 @@ import {
   HOOKS_MAX,
   HOOKS_MIN,
   MAX_REFERENCE_LINKS,
+  MAX_DRIVE_LINKS,
   PLATFORM_OPTIONS,
   PURPOSE_OPTIONS,
   STYLE_MAX,
@@ -134,7 +135,7 @@ function ChipGroup({
 
 const EMPTY = {
   projectName: "",
-  driveLink: "",
+  driveLinks: [""],
   format: [] as string[],
   formatOther: "",
   purpose: [] as string[],
@@ -167,10 +168,11 @@ export function ProjectForm() {
   const set = <K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
     // Clear a group's error as soon as the client fixes it.
+    const field = (key === "driveLinks" ? "driveLink" : key) as BriefField;
     setErrors((e) => {
-      if (!(key in e)) return e;
+      if (!(field in e)) return e;
       const next = { ...e };
-      delete next[key as BriefField];
+      delete next[field];
       return next;
     });
   };
@@ -182,7 +184,11 @@ export function ProjectForm() {
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-  const payload = () => ({ ...values, referenceLinks: values.referenceLinks.map((l) => l.trim()).filter(Boolean) });
+  const payload = () => ({
+    ...values,
+    driveLinks: values.driveLinks.map((l) => l.trim()).filter(Boolean),
+    referenceLinks: values.referenceLinks.map((l) => l.trim()).filter(Boolean),
+  });
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -324,27 +330,60 @@ export function ProjectForm() {
 
       {/* Drive link */}
       <div data-field="driveLink">
-        <label htmlFor="driveLink" className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3">
-          <span className="text-[0.85rem] font-bold text-foreground">
-            Google Drive link<span className="ml-0.5 text-orange">*</span>
-          </span>
+        <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3">
+          <label htmlFor="driveLink-0" className="text-[0.85rem] font-bold text-foreground">
+            Your footage<span className="ml-0.5 text-orange">*</span>
+          </label>
           <FieldError id="err-driveLink" message={errors.driveLink} />
-        </label>
-        <input
-          id="driveLink"
-          type="url"
-          inputMode="url"
-          autoCapitalize="none"
-          spellCheck={false}
-          value={values.driveLink}
-          onChange={(e) => set("driveLink", e.target.value)}
-          placeholder="https://drive.google.com/…"
-          aria-invalid={Boolean(errors.driveLink) || undefined}
-          aria-describedby={`hint-driveLink${errors.driveLink ? " err-driveLink" : ""}`}
-          className={`${inputClass} ${errors.driveLink ? "border-orange/70" : "border-line"}`}
-        />
-        <p id="hint-driveLink" className="mt-2 text-[0.75rem] leading-relaxed text-muted">
-          A video file or a folder of videos. Make sure the link is set to ‘Anyone with the link can view’.
+        </div>
+        <div className="space-y-2">
+          {values.driveLinks.map((link, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                id={`driveLink-${i}`}
+                type="url"
+                inputMode="url"
+                autoCapitalize="none"
+                spellCheck={false}
+                aria-label={i === 0 ? undefined : `Footage link ${i + 1}`}
+                value={link}
+                onChange={(e) => {
+                  const next = [...values.driveLinks];
+                  next[i] = e.target.value;
+                  set("driveLinks", next);
+                }}
+                placeholder="https://drive.google.com/…"
+                aria-invalid={Boolean(errors.driveLink) || undefined}
+                aria-describedby={`hint-driveLink${errors.driveLink ? " err-driveLink" : ""}`}
+                className={`${inputClass} ${errors.driveLink ? "border-orange/70" : "border-line"}`}
+              />
+              {values.driveLinks.length > 1 && (
+                <button
+                  type="button"
+                  aria-label={`Remove footage link ${i + 1}`}
+                  onClick={() => set("driveLinks", values.driveLinks.filter((_, j) => j !== i))}
+                  className="pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line text-muted hover:text-foreground"
+                >
+                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {values.driveLinks.length < MAX_DRIVE_LINKS && (
+          <button
+            type="button"
+            onClick={() => set("driveLinks", [...values.driveLinks, ""])}
+            className="mt-1.5 min-h-11 rounded-full px-1 text-[0.8rem] font-bold text-primary-ink hover:underline"
+          >
+            + Add another link
+          </button>
+        )}
+        <p id="hint-driveLink" className="text-[0.75rem] leading-relaxed text-muted">
+          Google Drive links to a video or a folder of clips — up to {MAX_DRIVE_LINKS}. Set each to ‘Anyone with the
+          link can view’.
         </p>
       </div>
 
