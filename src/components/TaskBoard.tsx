@@ -20,7 +20,7 @@ function CheckIcon() {
 
 function TaskCard({ task }: { task: Task }) {
   const overdue = !task.done && task.dueDate !== null && isOverdue(task.dueDate);
-  const notStarted = !task.done && task.status.toLowerCase() === "not started";
+  const queued = !task.done && ["queued", "not started"].includes(task.status.toLowerCase());
 
   return (
     <li className="rounded-2xl border border-line bg-white p-3.5 sm:p-4">
@@ -53,9 +53,9 @@ function TaskCard({ task }: { task: Task }) {
         ) : (
           <span className="text-[0.7rem] text-muted/70 sm:text-[0.75rem]">No due date</span>
         )}
-        {notStarted && (
+        {queued && (
           <span className="rounded-full bg-yellow/25 px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-wide text-[#8a5a00]">
-            Up next
+            Queued
           </span>
         )}
       </div>
@@ -87,7 +87,7 @@ function Column({ title, dot, tasks, empty }: { title: string; dot: string; task
 }
 
 export function TaskBoard({ tasks }: { tasks: Task[] }) {
-  // "Not started" tasks sit in the In Progress column (tagged "Up next") so nothing is hidden.
+  // "Queued" tasks sit in the In Progress column (tagged "Queued") so nothing is hidden.
   const active = tasks.filter((t) => !t.done);
   const done = tasks.filter((t) => t.done).reverse();
 

@@ -278,7 +278,7 @@ export async function getTasks(clientId: string): Promise<Task[]> {
     return {
       id: page.id,
       title: getText(page, TASK_PROPS.title, true) || "Untitled task",
-      status: status || "Not started",
+      status: status || "Queued",
       dueDate: getDate(page, TASK_PROPS.dueDate),
       done: DONE_STATUSES.includes(status.toLowerCase()),
     };

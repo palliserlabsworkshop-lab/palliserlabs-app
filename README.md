@@ -38,7 +38,7 @@ The app reads each database's schema at runtime, so property types are flexible:
 
 - **Login** (`src/app/actions.ts`): the email and PIN are checked on the server against the Clients DB using a timing-safe comparison. On success, the server sets an HttpOnly signed cookie that holds only the client's Notion page ID. Clients whose Status is Inactive, Archived, Disabled or Former can't sign in.
 - **Data isolation** (`src/lib/notion.ts`): every Tasks and Files query is filtered server-side by `Client` relation *contains* the page ID taken from the signed cookie. Nothing from the browser is trusted. Client data is never cached.
-- **Task columns**: *Done* goes to **Completed**. *In progress* and *Not started* go to **In Progress**, and *Not started* tasks carry an "Up next" tag.
+- **Task columns**: *Done* goes to **Completed**. *In progress* and *Queued* go to **In Progress**, and *Queued* tasks carry a "Queued" tag.
 - **Files** open through `/api/files/:id`. This route checks that the file belongs to the signed-in client, then redirects to a fresh link. Notion-hosted file links expire after about 1 hour.
 - **Comments** use the client's own row-page in the Clients DB as the thread.
   - Comments posted in the app appear in Notion under the client's name.
