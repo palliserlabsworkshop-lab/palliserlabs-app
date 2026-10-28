@@ -68,7 +68,7 @@ async function Dashboard() {
   return (
     <>
       <AutoRefresh />
-      <FloatingNav showReview={reviewTasks.length > 0} reviewCount={toReview} />
+      <FloatingNav showReview reviewCount={toReview} />
       <section className="animate-rise">
         <p className="text-[0.95rem] text-muted">Welcome back,</p>
         <h1 className="mt-1 break-words font-display text-[2.5rem] font-medium leading-[1.04] tracking-[-0.03em] sm:text-[3.4rem]">
@@ -81,20 +81,35 @@ async function Dashboard() {
         )}
       </section>
 
-      {reviewTasks.length > 0 && (
-        <Section
-          id="review"
-          title={toReview ? "Ready for your review" : "Your videos"}
-          delay={60}
-          subtitle={
-            toReview
-              ? "Watch it, then approve or tell us what to change."
-              : "Tweaks underway and finished cuts ready to download."
-          }
-        >
+      <Section
+        id="review"
+        title={toReview ? "Ready for your review" : "Your videos"}
+        delay={60}
+        subtitle={
+          toReview
+            ? "Watch it, then approve or tell us what to change."
+            : reviewTasks.length
+              ? "Tweaks underway and finished cuts ready to download."
+              : undefined
+        }
+      >
+        {reviewTasks.length ? (
           <ReviewSection tasks={reviewTasks} />
-        </Section>
-      )}
+        ) : (
+          <div className="card flex items-center gap-4 p-5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-surface text-muted" aria-hidden>
+              <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
+                <rect x="2.75" y="4.25" width="14.5" height="11.5" rx="2.5" />
+                <path d="M8.5 7.75v4.5l3.75-2.25-3.75-2.25Z" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <p className="text-[0.85rem] leading-relaxed text-muted">
+              <strong className="text-foreground">Nothing to review right now.</strong> When an edit is ready, it’ll
+              appear here for you to watch, approve or request changes.
+            </p>
+          </div>
+        )}
+      </Section>
 
       <Section id="tasks" title="Tasks" delay={80}>
         <TaskSummary tasks={tasks} />
