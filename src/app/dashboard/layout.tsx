@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
           <form action={logout}>
             <button
               type="submit"
-              className="-mr-2 min-h-11 rounded-full px-4 text-[0.85rem] font-bold text-muted transition hover:bg-card hover:text-foreground"
+              className="pressable -mr-2 min-h-11 rounded-full px-4 text-[0.85rem] font-bold text-muted hover:bg-card hover:text-foreground"
             >
               Sign out
             </button>
@@ -21,11 +21,11 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-5 pb-[max(4rem,env(safe-area-inset-bottom))] pt-10 sm:px-8 sm:pt-14">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-5 pb-36 pt-10 sm:px-8 sm:pt-14">
         {children}
       </main>
 
-      <footer className="mx-auto w-full max-w-3xl px-5 pb-8 text-[0.7rem] text-muted sm:px-8">© Palliser Labs</footer>
+      <footer className="mx-auto -mt-24 w-full max-w-3xl px-5 pb-28 text-[0.7rem] text-muted sm:px-8">© Palliser Labs</footer>
     </div>
   );
 }

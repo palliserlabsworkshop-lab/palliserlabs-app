@@ -59,7 +59,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-foreground text-[0.95rem] font-bold text-white transition hover:bg-primary active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
+        className="pressable flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-white hover:bg-primary-ink disabled:cursor-wait disabled:opacity-70"
       >
         {pending && (
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden />

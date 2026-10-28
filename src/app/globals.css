@@ -49,6 +49,11 @@
 html {
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+[id] {
+  scroll-margin-top: 5.5rem;
 }
 
 body {
@@ -63,6 +68,67 @@ body {
   border: 1px solid var(--brand-border);
   border-radius: 1.25rem;
   box-shadow: 0 1px 2px rgb(17 17 17 / 0.04), 0 4px 16px -8px rgb(17 17 17 / 0.06);
+}
+
+/* ---- Motion: short, precise, spring-like. All disabled under reduced motion. ---- */
+@theme {
+  --ease-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-rise: rise 0.6s var(--ease-out-soft) both;
+  --animate-pop: pop 0.35s var(--ease-spring) both;
+  --animate-grow: grow 0.9s var(--ease-out-soft) both;
+  --animate-float-in: float-in 0.7s var(--ease-spring) 0.35s both;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: scale(0.6); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes grow {
+    from { transform: scaleX(0); }
+    to { transform: none; }
+  }
+  @keyframes float-in {
+    from { opacity: 0; transform: translateY(24px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/* Tap feedback: a quick spring press on anything clickable */
+@utility pressable {
+  transition-property: transform, background-color, border-color, color, box-shadow, opacity;
+  transition-duration: 0.2s;
+  transition-timing-function: var(--ease-spring);
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+    transition-duration: 0.08s;
+  }
+}
+
+/* Cards lift slightly under a mouse; touch devices just get the press */
+@utility liftable {
+  @media (hover: hover) {
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 1px 2px rgb(17 17 17 / 0.04), 0 14px 32px -14px rgb(17 17 17 / 0.16);
+    }
+  }
+}
+
+/* Floating functional layer (header, bottom bar) — the only place glass is used */
+@utility glass {
+  background: rgb(255 255 255 / 0.72);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgb(255 255 255 / 0.6);
+  box-shadow: 0 0 0 1px rgb(17 17 17 / 0.05), 0 12px 40px -12px rgb(17 17 17 / 0.22),
+    inset 0 1px 0 rgb(255 255 255 / 0.8);
+  @media (prefers-reduced-transparency: reduce) {
+    background: rgb(255 255 255 / 0.97);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

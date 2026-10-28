@@ -100,7 +100,7 @@ function ChipGroup({
         return (
           <label
             key={o.key}
-            className={`inline-flex min-h-11 cursor-pointer select-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[0.8rem] font-bold transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-primary/20 ${
+            className={`pressable inline-flex min-h-11 cursor-pointer select-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[0.8rem] font-bold transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-primary/20 ${
               checked
                 ? "border-foreground bg-foreground text-white"
                 : disabled
@@ -120,7 +120,7 @@ function ChipGroup({
               className="sr-only"
             />
             {checked && (
-              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+              <svg viewBox="0 0 16 16" className="h-3 w-3 animate-pop" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
                 <path d="M3.5 8.5l3 3 6-7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
@@ -206,7 +206,7 @@ export function ProjectForm() {
     return (
       <div className="card p-5 sm:p-6">
         {submitted && (
-          <p role="status" className="mb-4 rounded-xl bg-yellow/25 px-4 py-3 text-[0.85rem] leading-relaxed text-yellow-ink">
+          <p role="status" className="mb-4 animate-rise rounded-xl bg-yellow/25 px-4 py-3 text-[0.85rem] leading-relaxed text-yellow-ink">
             <strong>“{submitted}”</strong> was sent to the team. You’ll see it in your tasks as <strong>Queued</strong>.
           </p>
         )}
@@ -219,7 +219,7 @@ export function ProjectForm() {
             setOpen(true);
             setSubmitted("");
           }}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.9rem] font-bold text-white transition hover:bg-primary-ink active:scale-[0.99] sm:w-auto sm:px-7"
+          className="pressable mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.9rem] font-bold text-white hover:bg-primary-ink sm:w-auto sm:px-7"
         >
           <span aria-hidden className="text-lg leading-none">+</span>
           Start a new project
@@ -231,7 +231,7 @@ export function ProjectForm() {
   const minDate = earliestDeadline();
   const maxDate = isoDateFromToday(MAX_DEADLINE_DAYS);
   const quickDates = [
-    { label: "Tomorrow", value: minDate },
+    { label: "24hrs", value: minDate },
     { label: "In 2 days", value: isoDateFromToday(2) },
     { label: "In 3 days", value: isoDateFromToday(3) },
     { label: "Next week", value: isoDateFromToday(7) },
@@ -244,7 +244,7 @@ export function ProjectForm() {
       ref={formRef}
       onSubmit={onSubmit}
       noValidate
-      className="card space-y-8 p-5 sm:p-6"
+      className="card animate-rise space-y-8 p-5 sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
         <p className="text-[0.8rem] text-muted">
@@ -317,7 +317,7 @@ export function ProjectForm() {
                 type="button"
                 aria-pressed={checked}
                 onClick={() => set("deadline", q.value)}
-                className={`min-h-11 rounded-full border px-4 text-[0.8rem] font-bold transition ${
+                className={`pressable min-h-11 rounded-full border px-4 text-[0.8rem] font-bold ${
                   checked ? "border-foreground bg-foreground text-white" : "border-line bg-card text-foreground hover:border-foreground/30"
                 }`}
               >
@@ -347,10 +347,12 @@ export function ProjectForm() {
         <p id="hint-deadline" className="mt-2 text-[0.75rem] leading-relaxed text-muted">
           {values.deadline ? (
             <>
-              Due <strong className="text-foreground">{formatDeadline(values.deadline)}</strong>.{" "}
+              Due <strong className="text-foreground">{formatDeadline(values.deadline)}</strong> · {TURNAROUND_HOURS}-hour
+              maximum turnaround per video.
             </>
-          ) : null}
-          Our maximum turnaround is {TURNAROUND_HOURS} hours per video, so the earliest date is {formatDeadline(minDate)}.
+          ) : (
+            <>Our maximum turnaround is {TURNAROUND_HOURS} hours per video.</>
+          )}
         </p>
       </div>
 
@@ -432,7 +434,7 @@ export function ProjectForm() {
                 role="radio"
                 aria-checked={checked}
                 onClick={() => set("hookCount", n)}
-                className={`min-h-11 rounded-xl text-[0.85rem] font-bold transition ${
+                className={`pressable min-h-11 rounded-xl text-[0.85rem] font-bold ${
                   checked ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted hover:text-foreground"
                 }`}
               >
@@ -541,7 +543,7 @@ export function ProjectForm() {
       <button
         type="submit"
         disabled={pending}
-        className="flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-white transition hover:bg-primary-ink active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
+        className="pressable flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-white hover:bg-primary-ink disabled:cursor-wait disabled:opacity-70"
       >
         {pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden />}
         {pending ? "Sending…" : "Done"}

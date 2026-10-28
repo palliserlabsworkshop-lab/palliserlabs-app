@@ -97,7 +97,7 @@ export function Comments({ initial, initialError }: { initial: PortalComment[]; 
           </p>
         ) : (
           comments.map((c) => (
-            <div key={c.id} className={`flex flex-col ${c.fromClient ? "items-end" : "items-start"}`}>
+            <div key={c.id} className={`flex animate-rise flex-col ${c.fromClient ? "items-end" : "items-start"}`}>
               <div
                 className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-[0.9rem] leading-relaxed ${
                   c.fromClient
@@ -145,7 +145,7 @@ export function Comments({ initial, initialError }: { initial: PortalComment[]; 
             type="submit"
             disabled={sending || !draft.trim()}
             aria-label="Send message"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-foreground text-white transition hover:bg-primary-ink disabled:opacity-30"
+            className="pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-foreground text-white hover:bg-primary-ink disabled:opacity-30"
           >
             {sending ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />

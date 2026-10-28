@@ -1,25 +1,44 @@
-/** Palliser Labs mark + wordmark, drawn in SVG so it stays crisp at any size. */
-export function LogoMark({ className = "h-7 w-auto" }: { className?: string }) {
+/**
+ * Palliser Labs logo, drawn as vector paths (letters outlined from the brand fonts:
+ * Aspekta Thin for PALLISER, Sora ExtraBold for LABS) so it stays sharp at any size.
+ */
+const THIN = "M9.4 100H13.9V57.2H47.2C67.8 57.2 79.2 45 79.2 28.6C79.2 12.2 67.8 0 47.2 0H9.4ZM13.9 53.1V4.2H47.2C64.7 4.2 74.6 14.4 74.6 28.6C74.6 42.8 64.7 53.1 47.2 53.1Z M179.9 100H184.9L143.4 0H138.7L97.2 100H102.2L114.8 69.2H167.3ZM116.5 65 141.1 5.1 165.6 65Z M204.3 100H261.8V95.8H208.8V0H204.3Z M282.9 100H340.4V95.8H287.3V0H282.9Z M361.4 100H365.9V0H361.4Z M427.5 101.7C449.9 101.7 463.1 90.1 463.1 74.3C463.1 60.8 457.6 52.1 427.8 46.5C401.4 41.7 396.2 35.3 396.2 23.2C396.2 11.2 406.8 2.5 424.9 2.5C443.1 2.5 455 11.7 455.6 29.9H460.1C459.7 10.7 446.9 -1.7 424.9 -1.7C404.4 -1.7 391.7 8.8 391.7 23.2C391.7 37.6 399 45.8 425.8 50.6C453.9 55.6 458.5 62.8 458.5 74.3C458.5 87.8 447.5 97.5 427.5 97.5C407.9 97.5 394.2 89.3 392.9 67.5H388.3C389.7 91.8 404.7 101.7 427.5 101.7Z M484.9 100H550.8V95.8H489.4V50H545.5V45.8H489.4V4.2H549.7V0H484.9Z M572.7 100H577.1V53.6H611.8C629.8 53.6 633.2 61.8 635.2 73.3L639.8 100H644.3L638.8 68.6C637.5 61.1 633.5 54.2 623.5 51.7C637 47.8 643.2 38.8 643.2 26.8C643.2 10.8 631.8 0 611.3 0H572.7ZM577.1 49.4V4.2H611.3C628.8 4.2 638.6 13.1 638.6 26.8C638.6 40.6 628.8 49.4 611.3 49.4Z";
+const BOLD = "M662.9 100V0H688.4V100ZM685.7 100V77.8H726.2V100Z M732.9 100 764.9 0H805.7L838.9 100H812.6L786.8 17.8L794.1 20.5H776L783.4 17.8L758.3 100ZM759 76.8 766.7 56H804.6L812.3 76.8Z M874 100.8V81.4H896.1Q901.7 81.4 904.4 78.5Q907.2 75.6 907.2 70.1Q907.2 64.7 904.4 61.8Q901.7 59 896.1 59H874V44H895.3Q905.8 44 914.2 46.5Q922.5 49 927.3 54.8Q932.1 60.5 932.1 70.1V72.1Q932.1 81.1 927.9 87.5Q923.6 94 915.4 97.4Q907.2 100.8 895.3 100.8ZM852.1 100.8V-0.8H876.8V100.8ZM874 55.2V40.1H892.4Q898 40.1 900.5 37.3Q903.1 34.5 903.1 29.5Q903.1 24.2 900.5 21.4Q898 18.6 892.4 18.6H874V-0.8H891.3Q908.8 -0.8 918.4 6.5Q928 13.8 928 27.4V29.5Q928 38.9 923.1 44.6Q918.3 50.3 910 52.7Q901.7 55.2 891.3 55.2Z M985.1 102.7Q971.1 102.7 961.6 98.4Q952.1 94 947.2 86.4Q942.3 78.8 942.3 68.9H967Q967 72.5 969 75.4Q971 78.4 974.9 80Q978.9 81.6 985.1 81.6Q990.4 81.6 994.2 80.3Q998 78.9 999.9 76.4Q1001.9 74 1001.9 70.5Q1001.9 66.2 998.2 63.8Q994.5 61.4 985.8 60.7L979.3 60.1Q963.8 58.8 954.7 50.4Q945.5 42.1 945.5 28.2Q945.5 18.4 950.1 11.4Q954.7 4.4 963 0.7Q971.4 -3 982.8 -3Q995.1 -3 1003.6 1.1Q1012.2 5.2 1016.7 12.7Q1021.2 20.1 1021.2 30H996.6Q996.6 26.7 994.9 24Q993.3 21.2 990.2 19.7Q987.1 18.1 982.8 18.1Q978.6 18.1 975.8 19.4Q973 20.7 971.6 23Q970.1 25.3 970.1 28.2Q970.1 32.1 972.8 34.8Q975.4 37.5 981.8 38.1L988.2 38.6Q999.5 39.6 1008.1 43.5Q1016.7 47.4 1021.7 54.1Q1026.6 60.8 1026.6 70.5Q1026.6 80.3 1021.6 87.5Q1016.6 94.8 1007.3 98.8Q998.1 102.7 985.1 102.7Z";
+
+function Mark() {
   return (
-    <svg viewBox="0 0 424 274" className={className} aria-hidden="true">
+    <>
       <rect x="0" y="0" width="82" height="274" rx="26" fill="var(--brand-yellow)" />
       <rect x="98" y="0" width="82" height="112" rx="26" fill="var(--brand-orange)" />
       <rect x="244" y="0" width="82" height="274" rx="26" fill="var(--brand-accent)" />
       <rect x="342" y="162" width="82" height="112" rx="26" fill="var(--brand-primary)" />
+    </>
+  );
+}
+
+export function LogoMark({ className = "h-7 w-auto" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 424 274" className={className} aria-hidden="true" shapeRendering="geometricPrecision">
+      <Mark />
     </svg>
   );
 }
 
 export function Logo({ size = "md" }: { size?: "md" | "lg" }) {
-  const mark = size === "lg" ? "h-9 w-auto" : "h-6 w-auto";
-  const text = size === "lg" ? "text-[1.35rem]" : "text-[0.95rem]";
   return (
-    <span className="inline-flex items-center gap-3" aria-label="Palliser Labs">
-      <LogoMark className={mark} />
-      <span className={`font-display ${text} leading-none tracking-[0.04em] text-foreground`}>
-        <span className="font-thin">PALLISER</span>
-        <span className="font-sans font-extrabold tracking-[0.01em]">LABS</span>
-      </span>
-    </span>
+    <svg
+      viewBox="0 0 1907 274"
+      className={`${size === "lg" ? "h-9" : "h-[1.6rem]"} w-auto text-foreground`}
+      role="img"
+      aria-label="Palliser Labs"
+      shapeRendering="geometricPrecision"
+    >
+      <Mark />
+      <g transform="translate(558 71.5) scale(1.31)" fill="currentColor">
+        {/* A hairline stroke keeps the thin letters crisp at small sizes */}
+        <path d={THIN} stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
+        <path d={BOLD} />
+      </g>
+    </svg>
   );
 }

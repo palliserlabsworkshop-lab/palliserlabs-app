@@ -6,16 +6,29 @@ import { FileList } from "@/components/FileList";
 import { Comments } from "@/components/Comments";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectForm } from "@/components/ProjectForm";
+import { FloatingNav } from "@/components/FloatingNav";
 import { getClient, getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
 import { getSessionClientId } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Dashboard — Palliser Labs" };
 
-function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: string }) {
+function Section({
+  id,
+  title,
+  children,
+  aside,
+  delay = 0,
+}: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+  aside?: string;
+  delay?: number;
+}) {
   return (
-    <section className="mt-12 sm:mt-14">
+    <section id={id} className="mt-14 animate-rise sm:mt-16" style={{ animationDelay: `${delay}ms` }}>
       <div className="mb-4 flex items-baseline justify-between gap-4 px-1">
-        <h2 className="font-display text-[1.3rem] font-medium tracking-tight sm:text-[1.45rem]">{title}</h2>
+        <h2 className="font-display text-[1.4rem] font-medium tracking-[-0.01em] sm:text-[1.6rem]">{title}</h2>
         {aside && <span className="text-[0.75rem] text-muted">{aside}</span>}
       </div>
       {children}
@@ -44,38 +57,33 @@ async function Dashboard() {
   return (
     <>
       <AutoRefresh />
-      <section>
-        <p className="text-[0.9rem] text-muted">Welcome back,</p>
-        <h1 className="mt-1 break-words font-display text-[2.25rem] font-medium leading-[1.08] tracking-[-0.02em] sm:text-[3rem]">
+      <FloatingNav />
+      <section className="animate-rise">
+        <p className="text-[0.95rem] text-muted">Welcome back,</p>
+        <h1 className="mt-1 break-words font-display text-[2.5rem] font-medium leading-[1.04] tracking-[-0.03em] sm:text-[3.4rem]">
           {client.name || "there"}
         </h1>
         {client.company && (
-          <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-line bg-card px-3.5 py-1.5 text-[0.8rem] font-bold text-foreground">
-            <span className="flex h-3 items-end gap-[2px]" aria-hidden>
-              <span className="h-3 w-[3px] rounded-full bg-yellow" />
-              <span className="h-1.5 w-[3px] self-start rounded-full bg-orange" />
-              <span className="h-3 w-[3px] rounded-full bg-accent" />
-              <span className="h-1.5 w-[3px] rounded-full bg-primary" />
-            </span>
+          <p className="mt-4 inline-flex items-center rounded-full border border-line bg-card px-3.5 py-1.5 text-[0.8rem] font-bold text-foreground">
             {client.company}
           </p>
         )}
       </section>
 
-      <Section title="Tasks">
+      <Section id="tasks" title="Tasks" delay={80}>
         <TaskSummary tasks={tasks} />
         <TaskBoard tasks={tasks} />
       </Section>
 
-      <Section title="New project">
+      <Section id="new-project" title="New project" delay={160}>
         <ProjectForm />
       </Section>
 
-      <Section title="Documents" aside={files.length ? `${files.length} shared` : undefined}>
+      <Section id="documents" title="Documents" delay={240} aside={files.length ? `${files.length} shared` : undefined}>
         <FileList files={files} />
       </Section>
 
-      <Section title="Comments">
+      <Section id="comments" title="Comments" delay={320}>
         <Comments initial={comments ?? []} initialError={comments === null} />
       </Section>
     </>

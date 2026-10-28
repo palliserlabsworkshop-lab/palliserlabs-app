@@ -61,10 +61,10 @@ export function FileList({ files }: { files: ClientFile[] }) {
                 href={`/api/files/${file.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex min-h-16 items-center gap-3.5 px-4 py-3.5 transition hover:bg-surface/60 active:bg-surface"
+                className="group flex min-h-16 items-center gap-3.5 px-4 py-3.5 transition-colors hover:bg-surface/60 active:bg-surface"
               >
                 {body}
-                <span className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface px-3.5 text-[0.75rem] font-bold text-foreground transition group-hover:bg-foreground group-hover:text-white">
+                <span className="pressable inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface px-3.5 text-[0.75rem] font-bold text-foreground group-hover:bg-foreground group-hover:text-white group-active:scale-95">
                   Open
                   <ArrowIcon />
                 </span>

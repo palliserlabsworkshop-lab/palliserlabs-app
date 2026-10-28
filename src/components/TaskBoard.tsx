@@ -59,7 +59,7 @@ function TaskCard({ task }: { task: Task }) {
       {task.hasBrief ? (
         <Link
           href={`/dashboard/projects/${task.id}`}
-          className={`${card} transition hover:border-foreground/15 active:scale-[0.99]`}
+          className={`${card} pressable liftable`}
         >
           {body}
         </Link>
@@ -111,11 +111,11 @@ export function TaskSummary({ tasks }: { tasks: Task[] }) {
         role="img"
         aria-label={`${counts.done} of ${tasks.length} tasks done, ${counts.in_progress} in progress, ${counts.queued} queued`}
       >
-        {segments.map((k) => (
+        {segments.map((k, i) => (
           <span
             key={k}
-            className={`h-full rounded-full ${STATUS_STYLES[k].rail}`}
-            style={{ flexGrow: counts[k], flexBasis: 0, minWidth: "0.625rem" }}
+            className={`h-full origin-left animate-grow rounded-full ${STATUS_STYLES[k].rail}`}
+            style={{ flexGrow: counts[k], flexBasis: 0, minWidth: "0.625rem", animationDelay: `${200 + i * 120}ms` }}
           />
         ))}
       </div>
@@ -126,7 +126,7 @@ export function TaskSummary({ tasks }: { tasks: Task[] }) {
               <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_STYLES[kind].rail}`} aria-hidden />
               {label}
             </dt>
-            <dd className="mt-0.5 font-display text-[1.35rem] font-medium tabular-nums leading-none">{counts[kind]}</dd>
+            <dd className="mt-1 font-display text-[1.6rem] font-medium tabular-nums leading-none tracking-[-0.02em]">{counts[kind]}</dd>
           </div>
         ))}
       </dl>
