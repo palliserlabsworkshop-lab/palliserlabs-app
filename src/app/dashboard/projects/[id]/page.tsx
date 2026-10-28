@@ -6,6 +6,7 @@ import { getProject } from "@/lib/notion";
 import { getSessionClientId } from "@/lib/session";
 import { briefRows, isHttpUrl } from "@/lib/brief";
 import { formatDueDate } from "@/lib/format";
+import { StatusChip } from "@/components/StatusChip";
 
 export const metadata: Metadata = { title: "Project brief — Palliser Labs" };
 
@@ -18,28 +19,22 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
   const project = await getProject(clientId, id);
   if (!project) notFound();
 
-  const statusTone = project.done
-    ? "bg-primary/10 text-primary"
-    : project.status.toLowerCase() === "queued"
-      ? "bg-yellow/25 text-[#8a5a00]"
-      : "bg-accent/15 text-[#0b6a9e]";
-
   return (
     <article>
       <h1 className="break-words font-display text-[1.9rem] font-medium leading-[1.15] tracking-tight sm:text-[2.4rem]">
         {project.title}
       </h1>
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-3 py-1 text-[0.75rem] font-bold ${statusTone}`}>{project.status}</span>
+        <StatusChip status={project.status} done={project.done} size="md" />
         {project.dueDate && (
-          <span className="rounded-full bg-surface px-3 py-1 text-[0.75rem] text-muted">
+          <span className="rounded-full border border-line bg-card px-3 py-1 text-[0.75rem] text-muted">
             Due {formatDueDate(project.dueDate)}
           </span>
         )}
       </div>
 
       {project.brief ? (
-        <dl className="mt-10 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white">
+        <dl className="card mt-10 divide-y divide-line overflow-hidden">
           {briefRows(project.brief).map((row) => (
             <div key={row.label} className="px-4 py-4 sm:grid sm:grid-cols-[10rem_1fr] sm:gap-6 sm:px-5">
               <dt className="text-[0.75rem] font-bold uppercase tracking-wide text-muted">{row.label}</dt>
@@ -51,7 +46,7 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
                     {row.values.map((v) => (
                       <li key={v} className="break-all text-[0.9rem]">
                         {isHttpUrl(v) ? (
-                          <a href={v} target="_blank" rel="noopener noreferrer" className="font-bold text-primary hover:underline">
+                          <a href={v} target="_blank" rel="noopener noreferrer" className="font-bold text-primary-ink hover:underline">
                             {v}
                           </a>
                         ) : (

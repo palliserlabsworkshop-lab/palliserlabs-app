@@ -38,8 +38,8 @@ The app reads each database's schema at runtime, so property types are flexible:
 
 - **Login** (`src/app/actions.ts`): the email and PIN are checked on the server against the Clients DB using a timing-safe comparison. On success, the server sets an HttpOnly signed cookie that holds only the client's Notion page ID. Clients whose Status is Inactive, Archived, Disabled or Former can't sign in.
 - **Data isolation** (`src/lib/notion.ts`): every Tasks and Files query is filtered server-side by `Client` relation *contains* the page ID taken from the signed cookie. Nothing from the browser is trusted. Client data is never cached.
-- **Task columns**: *Done* goes to **Completed**. *In progress* and *Queued* go to **In Progress**, and *Queued* tasks carry a "Queued" tag.
-- **New project form**: clients submit a Google Drive link and a brief (format, purpose, style, hooks, platform, references, notes). This creates a **Queued** row in the Tasks DB linked to the client.
+- **Task columns**: *Done* goes to **Completed**. *Queued* and *In progress* go to **In Progress**, with a yellow **Queued** or blue **In Progress** chip. Status colours: yellow = Queued, blue = In Progress, purple = Done.
+- **New project form**: clients submit a Google Drive link, a "needed by" date and a brief (format, purpose, style, 1–3 hook variants, platform, references, notes). This creates a **Queued** row in the Tasks DB linked to the client, with the date in `Due date`. The earliest date allowed is set by `TURNAROUND_HOURS` (24) in `src/lib/brief.ts`.
   - The answers are saved in `Brief Data` as JSON option keys (e.g. `talking_head`), so the labels in `src/lib/brief.ts` can change without breaking old data.
   - A readable copy of the brief is written into the Notion page body for the editor.
   - Clients can open each project's brief from its task card in the app.

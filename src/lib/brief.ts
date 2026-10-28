@@ -43,10 +43,26 @@ export const PLATFORM_OPTIONS: Option[] = [
 ];
 
 export const STYLE_MAX = 2;
-export const HOOKS_MIN = 2;
-export const HOOKS_MAX = 10;
-export const HOOKS_DEFAULT = 3;
+export const HOOKS_MIN = 1;
+export const HOOKS_MAX = 3;
+export const HOOKS_DEFAULT = 1;
 export const MAX_REFERENCE_LINKS = 10;
+
+/** Maximum turnaround per video. The earliest deadline a client can pick is this far ahead. */
+export const TURNAROUND_HOURS = 24;
+export const MAX_DEADLINE_DAYS = 365;
+
+/** YYYY-MM-DD for a date `days` from today in the given (or local) time. */
+export function isoDateFromToday(days: number, now = new Date()): string {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Earliest selectable deadline: today + turnaround, rounded up to whole days. */
+export function earliestDeadline(now = new Date()): string {
+  return isoDateFromToday(Math.ceil(TURNAROUND_HOURS / 24), now);
+}
 
 export type Brief = {
   version: 1;
@@ -58,6 +74,7 @@ export type Brief = {
   style: string[];
   hookVariants: boolean;
   hookCount: number | null;
+  deadline: string;
   platform: string[];
   referenceLinks: string[];
   notes: string;
@@ -71,6 +88,7 @@ export type BriefField =
   | "purpose"
   | "style"
   | "hookCount"
+  | "deadline"
   | "platform"
   | "referenceLinks"
   | "notes";
@@ -100,9 +118,13 @@ const pick = (value: unknown, options: Option[]) => {
 const str = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
 /** Cleans untrusted input (unknown keys dropped, lengths capped) and validates it. */
-export function validateBrief(input: Record<string, unknown>): { brief: Brief; errors: BriefErrors } {
-  const hookVariants = input.hookVariants !== false;
-  const rawCount = Number(input.hookCount);
+export function validateBrief(
+  input: Record<string, unknown>,
+  /** Earliest allowed deadline (YYYY-MM-DD). The server passes a day of leeway for time zones. */
+  minDeadline = earliestDeadline(),
+): { brief: Brief; errors: BriefErrors } {
+  const rawCount = Math.round(Number(input.hookCount));
+  const hookCount = Number.isFinite(rawCount) ? rawCount : NaN;
   const brief: Brief = {
     version: 1,
     projectName: str(input.projectName, 200),
@@ -111,8 +133,9 @@ export function validateBrief(input: Record<string, unknown>): { brief: Brief; e
     formatOther: str(input.formatOther, 200),
     purpose: pick(input.purpose, PURPOSE_OPTIONS),
     style: pick(input.style, STYLE_OPTIONS),
-    hookVariants,
-    hookCount: hookVariants ? (Number.isFinite(rawCount) ? Math.round(rawCount) : NaN) : null,
+    hookVariants: hookCount > 1,
+    hookCount,
+    deadline: str(input.deadline, 10),
     platform: pick(input.platform, PLATFORM_OPTIONS),
     referenceLinks: Array.isArray(input.referenceLinks)
       ? input.referenceLinks.map((l) => str(l, 1000)).filter(Boolean)
@@ -129,8 +152,16 @@ export function validateBrief(input: Record<string, unknown>): { brief: Brief; e
   else if (brief.format.includes("other") && !brief.formatOther) errors.formatOther = "Tell us which format.";
   if (!brief.purpose.length) errors.purpose = "Pick at least one purpose.";
   if (brief.style.length > STYLE_MAX) errors.style = `Pick up to ${STYLE_MAX}.`;
-  if (brief.hookVariants && !(Number(brief.hookCount) >= HOOKS_MIN && Number(brief.hookCount) <= HOOKS_MAX)) {
+  if (!(Number(brief.hookCount) >= HOOKS_MIN && Number(brief.hookCount) <= HOOKS_MAX)) {
     errors.hookCount = `Choose between ${HOOKS_MIN} and ${HOOKS_MAX}.`;
+  }
+  if (!brief.deadline) errors.deadline = "Choose when you need it by.";
+  else if (!/^\d{4}-\d{2}-\d{2}$/.test(brief.deadline) || Number.isNaN(Date.parse(brief.deadline))) {
+    errors.deadline = "Choose a valid date.";
+  } else if (brief.deadline < minDeadline) {
+    errors.deadline = `Our turnaround is ${TURNAROUND_HOURS} hours, so the earliest date is ${formatDeadline(minDeadline)}.`;
+  } else if (brief.deadline > isoDateFromToday(MAX_DEADLINE_DAYS)) {
+    errors.deadline = "Choose a date within the next year.";
   }
   if (!brief.platform.length) errors.platform = "Pick at least one platform.";
   if (brief.referenceLinks.length > MAX_REFERENCE_LINKS) {
@@ -146,7 +177,10 @@ export function parseBrief(json: string): Brief | null {
   try {
     const data = JSON.parse(json);
     if (!data || typeof data !== "object" || data.version !== 1) return null;
-    return { ...validateBrief(data).brief, hookCount: data.hookVariants === false ? null : Number(data.hookCount) || null };
+    // Read stored answers as-is; validation rules may have changed since they were saved.
+    const { brief } = validateBrief(data, "0000-00-00");
+    const count = Number(data.hookCount) || (data.hookVariants === false ? 1 : null);
+    return { ...brief, hookCount: count, hookVariants: (count ?? 1) > 1 };
   } catch {
     return null;
   }
@@ -155,6 +189,19 @@ export function parseBrief(json: string): Brief | null {
 /** Turns stored keys back into labels; unknown keys (e.g. a removed option) are shown as-is. */
 export function labelsFor(keys: string[], options: Option[]): string[] {
   return keys.map((k) => options.find((o) => o.key === k)?.label ?? k);
+}
+
+/** "Thu 30 Oct 2026" for a YYYY-MM-DD date, independent of time zone. */
+export function formatDeadline(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(d);
 }
 
 export function formatLabels(brief: Brief): string[] {
@@ -167,10 +214,14 @@ export function formatLabels(brief: Brief): string[] {
 export function briefRows(brief: Brief): { label: string; values: string[]; links?: boolean }[] {
   return [
     { label: "Video files", values: [brief.driveLink], links: true },
+    { label: "Needed by", values: brief.deadline ? [formatDeadline(brief.deadline)] : [] },
     { label: "Format", values: formatLabels(brief) },
     { label: "Purpose", values: labelsFor(brief.purpose, PURPOSE_OPTIONS) },
     { label: "Style / tone", values: labelsFor(brief.style, STYLE_OPTIONS) },
-    { label: "Hook variants", values: [brief.hookVariants ? `Yes — ${brief.hookCount} hooks` : "No"] },
+    {
+      label: "Hooks",
+      values: brief.hookCount ? [brief.hookCount > 1 ? `${brief.hookCount} hook variants` : "1 hook"] : [],
+    },
     { label: "Platform", values: labelsFor(brief.platform, PLATFORM_OPTIONS) },
     { label: "Reference links", values: brief.referenceLinks, links: true },
     { label: "Notes", values: brief.notes ? [brief.notes] : [] },

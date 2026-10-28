@@ -13,6 +13,11 @@ import {
   PURPOSE_OPTIONS,
   STYLE_MAX,
   STYLE_OPTIONS,
+  TURNAROUND_HOURS,
+  earliestDeadline,
+  formatDeadline,
+  isoDateFromToday,
+  MAX_DEADLINE_DAYS,
   validateBrief,
   type BriefErrors,
   type BriefField,
@@ -22,6 +27,7 @@ import {
 const FIELD_ORDER: BriefField[] = [
   "projectName",
   "driveLink",
+  "deadline",
   "format",
   "formatOther",
   "purpose",
@@ -37,7 +43,7 @@ const inputClass =
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
-    <p id={id} role="alert" className="text-[0.75rem] font-bold text-[#c2541b]">
+    <p id={id} role="alert" className="text-[0.75rem] font-bold text-orange-ink">
       {message}
     </p>
   );
@@ -94,14 +100,14 @@ function ChipGroup({
         return (
           <label
             key={o.key}
-            className={`inline-flex min-h-10 cursor-pointer select-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[0.8rem] font-bold transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-primary/20 ${
+            className={`inline-flex min-h-11 cursor-pointer select-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[0.8rem] font-bold transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-primary/20 ${
               checked
-                ? "border-primary bg-primary/10 text-primary"
+                ? "border-foreground bg-foreground text-white"
                 : disabled
                   ? "cursor-not-allowed border-line bg-surface text-muted/50"
                   : invalid
-                    ? "border-[#f0c2a6] bg-white text-foreground hover:border-foreground/30"
-                    : "border-line bg-white text-foreground hover:border-foreground/30"
+                    ? "border-orange/60 bg-card text-foreground hover:border-foreground/30"
+                    : "border-line bg-card text-foreground hover:border-foreground/30"
             }`}
           >
             <input
@@ -133,8 +139,8 @@ const EMPTY = {
   formatOther: "",
   purpose: [] as string[],
   style: [] as string[],
-  hookVariants: true,
   hookCount: HOOKS_DEFAULT,
+  deadline: "",
   platform: [] as string[],
   referenceLinks: [""],
   notes: "",
@@ -198,9 +204,9 @@ export function ProjectForm() {
 
   if (!open) {
     return (
-      <div className="rounded-2xl border border-line bg-white p-5 sm:p-6">
+      <div className="card p-5 sm:p-6">
         {submitted && (
-          <p role="status" className="mb-4 rounded-xl bg-primary/10 px-4 py-3 text-[0.85rem] text-primary">
+          <p role="status" className="mb-4 rounded-xl bg-yellow/25 px-4 py-3 text-[0.85rem] leading-relaxed text-yellow-ink">
             <strong>“{submitted}”</strong> was sent to the team. You’ll see it in your tasks as <strong>Queued</strong>.
           </p>
         )}
@@ -213,7 +219,7 @@ export function ProjectForm() {
             setOpen(true);
             setSubmitted("");
           }}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-foreground text-[0.9rem] font-bold text-white transition hover:bg-primary sm:w-auto sm:px-6"
+          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.9rem] font-bold text-white transition hover:bg-primary-ink active:scale-[0.99] sm:w-auto sm:px-7"
         >
           <span aria-hidden className="text-lg leading-none">+</span>
           Start a new project
@@ -222,6 +228,15 @@ export function ProjectForm() {
     );
   }
 
+  const minDate = earliestDeadline();
+  const maxDate = isoDateFromToday(MAX_DEADLINE_DAYS);
+  const quickDates = [
+    { label: "Tomorrow", value: minDate },
+    { label: "In 2 days", value: isoDateFromToday(2) },
+    { label: "In 3 days", value: isoDateFromToday(3) },
+    { label: "Next week", value: isoDateFromToday(7) },
+  ].filter((q) => q.value >= minDate);
+
   const styleHint = values.style.length >= STYLE_MAX ? `${STYLE_MAX} of ${STYLE_MAX} picked` : `Pick up to ${STYLE_MAX}`;
 
   return (
@@ -229,7 +244,7 @@ export function ProjectForm() {
       ref={formRef}
       onSubmit={onSubmit}
       noValidate
-      className="space-y-7 rounded-2xl border border-line bg-white p-5 sm:p-6"
+      className="card space-y-8 p-5 sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
         <p className="text-[0.8rem] text-muted">
@@ -238,7 +253,7 @@ export function ProjectForm() {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="-mr-2 -mt-1 shrink-0 rounded-full px-3 py-1.5 text-[0.8rem] font-bold text-muted hover:bg-surface hover:text-foreground"
+          className="-mr-2 -mt-2 min-h-11 shrink-0 rounded-full px-4 text-[0.8rem] font-bold text-muted hover:bg-surface hover:text-foreground"
         >
           Cancel
         </button>
@@ -260,7 +275,7 @@ export function ProjectForm() {
           placeholder="e.g. Spring launch video"
           aria-invalid={Boolean(errors.projectName) || undefined}
           aria-describedby={errors.projectName ? "err-projectName" : undefined}
-          className={`${inputClass} ${errors.projectName ? "border-[#e8a27c]" : "border-line"}`}
+          className={`${inputClass} ${errors.projectName ? "border-orange/70" : "border-line"}`}
         />
       </div>
 
@@ -283,10 +298,59 @@ export function ProjectForm() {
           placeholder="https://drive.google.com/…"
           aria-invalid={Boolean(errors.driveLink) || undefined}
           aria-describedby={`hint-driveLink${errors.driveLink ? " err-driveLink" : ""}`}
-          className={`${inputClass} ${errors.driveLink ? "border-[#e8a27c]" : "border-line"}`}
+          className={`${inputClass} ${errors.driveLink ? "border-orange/70" : "border-line"}`}
         />
         <p id="hint-driveLink" className="mt-2 text-[0.75rem] leading-relaxed text-muted">
           A video file or a folder of videos. Make sure the link is set to ‘Anyone with the link can view’.
+        </p>
+      </div>
+
+      {/* Deadline */}
+      <div data-field="deadline">
+        <GroupHeader label="Needed by" required error={errors.deadline} errorId="err-deadline" />
+        <div className="flex flex-wrap gap-2">
+          {quickDates.map((q) => {
+            const checked = values.deadline === q.value;
+            return (
+              <button
+                key={q.value}
+                type="button"
+                aria-pressed={checked}
+                onClick={() => set("deadline", q.value)}
+                className={`min-h-11 rounded-full border px-4 text-[0.8rem] font-bold transition ${
+                  checked ? "border-foreground bg-foreground text-white" : "border-line bg-card text-foreground hover:border-foreground/30"
+                }`}
+              >
+                {q.label}
+              </button>
+            );
+          })}
+        </div>
+        <label htmlFor="deadline" className="mt-3 flex min-h-12 items-center gap-3 rounded-xl border border-line bg-card px-3.5 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
+          <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+            <rect x="2" y="3" width="12" height="11" rx="2.5" />
+            <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" strokeLinecap="round" />
+          </svg>
+          <span className="sr-only">Pick a date</span>
+          <input
+            id="deadline"
+            type="date"
+            min={minDate}
+            max={maxDate}
+            value={values.deadline}
+            onChange={(e) => set("deadline", e.target.value)}
+            aria-invalid={Boolean(errors.deadline) || undefined}
+            aria-describedby={`hint-deadline${errors.deadline ? " err-deadline" : ""}`}
+            className="h-11 min-w-0 flex-1 bg-transparent text-base text-foreground focus:outline-none sm:text-[0.9rem]"
+          />
+        </label>
+        <p id="hint-deadline" className="mt-2 text-[0.75rem] leading-relaxed text-muted">
+          {values.deadline ? (
+            <>
+              Due <strong className="text-foreground">{formatDeadline(values.deadline)}</strong>.{" "}
+            </>
+          ) : null}
+          Our maximum turnaround is {TURNAROUND_HOURS} hours per video, so the earliest date is {formatDeadline(minDate)}.
         </p>
       </div>
 
@@ -320,7 +384,7 @@ export function ProjectForm() {
               placeholder="Describe the format"
               aria-invalid={Boolean(errors.formatOther) || undefined}
               aria-describedby={errors.formatOther ? "err-formatOther" : undefined}
-              className={`${inputClass} ${errors.formatOther ? "border-[#e8a27c]" : "border-line"}`}
+              className={`${inputClass} ${errors.formatOther ? "border-orange/70" : "border-line"}`}
             />
             <div className="mt-1.5">
               <FieldError id="err-formatOther" message={errors.formatOther} />
@@ -355,69 +419,33 @@ export function ProjectForm() {
         />
       </div>
 
-      {/* Hooks */}
+      {/* Hooks — a segmented choice beats typing a number */}
       <div data-field="hookCount">
-        <div className="flex items-center justify-between gap-4">
-          <label htmlFor="hookVariants" className="text-[0.85rem] font-bold text-foreground">
-            Multiple hook variants?
-          </label>
-          <button
-            id="hookVariants"
-            type="button"
-            role="switch"
-            aria-checked={values.hookVariants}
-            onClick={() => set("hookVariants", !values.hookVariants)}
-            className={`relative h-7 w-12 shrink-0 rounded-full transition ${values.hookVariants ? "bg-primary" : "bg-line"}`}
-          >
-            <span
-              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-all ${
-                values.hookVariants ? "left-[1.375rem]" : "left-0.5"
-              }`}
-            />
-          </button>
+        <GroupHeader label="Hook variants" hint={`Up to ${HOOKS_MAX}`} error={errors.hookCount} errorId="err-hookCount" />
+        <div role="radiogroup" aria-label="Number of hook variants" className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1">
+          {Array.from({ length: HOOKS_MAX - HOOKS_MIN + 1 }, (_, i) => HOOKS_MIN + i).map((n) => {
+            const checked = values.hookCount === n;
+            return (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={checked}
+                onClick={() => set("hookCount", n)}
+                className={`min-h-11 rounded-xl text-[0.85rem] font-bold transition ${
+                  checked ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted hover:text-foreground"
+                }`}
+              >
+                {n === 1 ? "1 hook" : `${n} hooks`}
+              </button>
+            );
+          })}
         </div>
-        {values.hookVariants && (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface px-4 py-3">
-            <label htmlFor="hookCount" className="text-[0.8rem] text-foreground">
-              How many hooks?
-            </label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                aria-label="Fewer hooks"
-                onClick={() => set("hookCount", Math.max(HOOKS_MIN, (values.hookCount || HOOKS_DEFAULT) - 1))}
-                disabled={values.hookCount <= HOOKS_MIN}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-lg font-bold disabled:opacity-30"
-              >
-                −
-              </button>
-              <input
-                id="hookCount"
-                type="number"
-                inputMode="numeric"
-                min={HOOKS_MIN}
-                max={HOOKS_MAX}
-                value={Number.isNaN(values.hookCount) ? "" : values.hookCount}
-                onChange={(e) => set("hookCount", e.target.value === "" ? NaN : Number(e.target.value))}
-                aria-invalid={Boolean(errors.hookCount) || undefined}
-                aria-describedby={errors.hookCount ? "err-hookCount" : undefined}
-                className="h-9 w-14 rounded-lg border border-line bg-white text-center text-base font-bold tabular-nums focus:border-primary focus:outline-none"
-              />
-              <button
-                type="button"
-                aria-label="More hooks"
-                onClick={() => set("hookCount", Math.min(HOOKS_MAX, (values.hookCount || HOOKS_MIN) + 1))}
-                disabled={values.hookCount >= HOOKS_MAX}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-lg font-bold disabled:opacity-30"
-              >
-                +
-              </button>
-            </div>
-            <div className="basis-full empty:hidden">
-              <FieldError id="err-hookCount" message={errors.hookCount} />
-            </div>
-          </div>
-        )}
+        <p className="mt-2 text-[0.75rem] text-muted">
+          {values.hookCount > 1
+            ? `We’ll cut ${values.hookCount} different openings so you can test which performs best.`
+            : "One opening hook. Add variants to test different openings."}
+        </p>
       </div>
 
       {/* Platform */}
@@ -476,7 +504,7 @@ export function ProjectForm() {
           <button
             type="button"
             onClick={() => set("referenceLinks", [...values.referenceLinks, ""])}
-            className="mt-2.5 rounded-full px-1 py-1 text-[0.8rem] font-bold text-primary hover:underline"
+            className="mt-1.5 min-h-11 rounded-full px-1 text-[0.8rem] font-bold text-primary-ink hover:underline"
           >
             + Add another link
           </button>
@@ -500,12 +528,12 @@ export function ProjectForm() {
       </div>
 
       {formError && (
-        <p role="alert" className="rounded-xl bg-orange/10 px-4 py-3 text-sm text-[#b4501a]">
+        <p role="alert" className="rounded-xl bg-orange/10 px-4 py-3 text-sm text-orange-ink">
           {formError}
         </p>
       )}
       {Object.keys(errors).length > 0 && (
-        <p role="alert" className="text-center text-[0.8rem] font-bold text-[#c2541b]">
+        <p role="alert" className="text-center text-[0.8rem] font-bold text-orange-ink">
           Please fix the highlighted fields above.
         </p>
       )}
@@ -513,7 +541,7 @@ export function ProjectForm() {
       <button
         type="submit"
         disabled={pending}
-        className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-foreground text-[0.95rem] font-bold text-white transition hover:bg-primary active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
+        className="flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-white transition hover:bg-primary-ink active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
       >
         {pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden />}
         {pending ? "Sending…" : "Done"}

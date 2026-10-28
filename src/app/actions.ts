@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { authenticateClient, createProject, getClient } from "@/lib/notion";
-import { validateBrief, type BriefErrors } from "@/lib/brief";
+import { isoDateFromToday, validateBrief, type BriefErrors } from "@/lib/brief";
 import { clearFailures, isLimited, recordFailure } from "@/lib/rate-limit";
 import { createSession, destroySession, getSessionClientId } from "@/lib/session";
 
@@ -56,7 +56,8 @@ export async function submitProject(input: Record<string, unknown>): Promise<Pro
   const client = clientId ? await getClient(clientId) : null;
   if (!client) redirect("/login");
 
-  const { brief, errors } = validateBrief(input);
+  // Allow "today" on the server so clients ahead of UTC can still pick their local tomorrow.
+  const { brief, errors } = validateBrief(input, isoDateFromToday(0));
   if (Object.keys(errors).length) return { errors };
 
   try {

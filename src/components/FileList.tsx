@@ -29,14 +29,14 @@ function ArrowIcon() {
 export function FileList({ files }: { files: ClientFile[] }) {
   if (!files.length) {
     return (
-      <p className="rounded-2xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
+      <p className="rounded-[1.25rem] border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
         No documents have been shared yet.
       </p>
     );
   }
 
   return (
-    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white">
+    <ul className="card divide-y divide-line overflow-hidden">
       {files.map((file) => {
         const color = swatchFor(file.type || "file");
         const body = (
@@ -61,10 +61,10 @@ export function FileList({ files }: { files: ClientFile[] }) {
                 href={`/api/files/${file.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex items-center gap-3.5 px-4 py-3.5 transition hover:bg-surface active:bg-surface"
+                className="group flex min-h-16 items-center gap-3.5 px-4 py-3.5 transition hover:bg-surface/60 active:bg-surface"
               >
                 {body}
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line px-3 py-1.5 text-[0.75rem] font-bold text-foreground transition group-hover:border-primary group-hover:text-primary">
+                <span className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface px-3.5 text-[0.75rem] font-bold text-foreground transition group-hover:bg-foreground group-hover:text-white">
                   Open
                   <ArrowIcon />
                 </span>

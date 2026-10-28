@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { TaskBoard } from "@/components/TaskBoard";
+import { TaskBoard, TaskSummary } from "@/components/TaskBoard";
 import { FileList } from "@/components/FileList";
 import { Comments } from "@/components/Comments";
 import { AutoRefresh } from "@/components/AutoRefresh";
@@ -13,9 +13,9 @@ export const metadata: Metadata = { title: "Dashboard — Palliser Labs" };
 
 function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: string }) {
   return (
-    <section className="mt-12 sm:mt-16">
-      <div className="mb-4 flex items-baseline justify-between gap-4 sm:mb-5">
-        <h2 className="font-display text-[1.15rem] font-medium tracking-tight sm:text-xl">{title}</h2>
+    <section className="mt-12 sm:mt-14">
+      <div className="mb-4 flex items-baseline justify-between gap-4 px-1">
+        <h2 className="font-display text-[1.3rem] font-medium tracking-tight sm:text-[1.45rem]">{title}</h2>
         {aside && <span className="text-[0.75rem] text-muted">{aside}</span>}
       </div>
       {children}
@@ -40,33 +40,30 @@ async function Dashboard() {
     }),
   ]);
 
-  const doneCount = tasks.filter((t) => t.done).length;
 
   return (
     <>
       <AutoRefresh />
       <section>
-        <p className="text-[0.85rem] text-muted">Welcome back,</p>
-        <h1 className="mt-1 break-words font-display text-[2.1rem] font-medium leading-[1.1] tracking-tight sm:text-[2.75rem]">
+        <p className="text-[0.9rem] text-muted">Welcome back,</p>
+        <h1 className="mt-1 break-words font-display text-[2.25rem] font-medium leading-[1.08] tracking-[-0.02em] sm:text-[3rem]">
           {client.name || "there"}
         </h1>
         {client.company && (
-          <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1.5 text-[0.8rem] font-bold text-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+          <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-line bg-card px-3.5 py-1.5 text-[0.8rem] font-bold text-foreground">
+            <span className="flex h-3 items-end gap-[2px]" aria-hidden>
+              <span className="h-3 w-[3px] rounded-full bg-yellow" />
+              <span className="h-1.5 w-[3px] self-start rounded-full bg-orange" />
+              <span className="h-3 w-[3px] rounded-full bg-accent" />
+              <span className="h-1.5 w-[3px] rounded-full bg-primary" />
+            </span>
             {client.company}
           </p>
         )}
       </section>
 
-      <Section title="Tasks" aside={tasks.length ? `${doneCount} of ${tasks.length} complete` : undefined}>
-        {tasks.length > 0 && (
-          <div className="mb-6 h-1.5 overflow-hidden rounded-full bg-surface" aria-hidden>
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${Math.round((doneCount / tasks.length) * 100)}%` }}
-            />
-          </div>
-        )}
+      <Section title="Tasks">
+        <TaskSummary tasks={tasks} />
         <TaskBoard tasks={tasks} />
       </Section>
 

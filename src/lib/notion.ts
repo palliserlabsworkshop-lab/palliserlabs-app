@@ -351,6 +351,7 @@ export async function createProject(client: ClientProfile, brief: Brief): Promis
   const linkName = resolveName(names, TASK_PROPS.videoLink);
   const briefName = resolveName(names, TASK_PROPS.briefData);
   const clientName = resolveName(names, TASK_PROPS.client);
+  const dueName = resolveName(names, TASK_PROPS.dueDate);
 
   // Built loosely and only for properties that exist, so a missing column never blocks a submission.
   const properties: Record<string, unknown> = {
@@ -359,6 +360,7 @@ export async function createProject(client: ClientProfile, brief: Brief): Promis
   };
   if (ds.schema[linkName] === "url") properties[linkName] = { url: brief.driveLink };
   else if (ds.schema[linkName] === "rich_text") properties[linkName] = { rich_text: chunkText(brief.driveLink) };
+  if (ds.schema[dueName] === "date" && brief.deadline) properties[dueName] = { date: { start: brief.deadline } };
   if (ds.schema[briefName] === "rich_text") properties[briefName] = { rich_text: chunkText(JSON.stringify(brief)) };
 
   const withStatus = { ...properties };

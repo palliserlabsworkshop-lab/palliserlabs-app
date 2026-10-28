@@ -6,17 +6,24 @@
    variables, so this is the only place you need to change colours.
    ========================================================================= */
 :root {
-  --brand-primary: #8f52f8;      /* Primary colour — buttons, links, focus rings (Purple) */
-  --brand-accent: #38b6ff;       /* Accent colour — in-progress highlights (Light Blue) */
-  --brand-background: #ffffff;   /* Page background */
-  --brand-text: #111111;         /* Main text colour */
+  --brand-primary: #8f52f8;      /* Primary colour — brand purple (also means "Done") */
+  --brand-accent: #38b6ff;       /* Accent colour — light blue (also means "In Progress") */
+  --brand-background: #f6f6f8;   /* Page background — soft grey behind white cards */
+  --brand-text: #111111;         /* Main text colour (ink) — also used for main buttons */
 
   /* Supporting brand colours (from the Palliser Labs palette) */
-  --brand-yellow: #febd59;
-  --brand-orange: #ff914c;
-  --brand-muted: #6b6b76;        /* Secondary text */
-  --brand-surface: #f7f7f9;      /* Cards / subtle panels */
-  --brand-border: #ececf0;       /* Hairlines */
+  --brand-yellow: #febd59;       /* Also means "Queued" */
+  --brand-orange: #ff914c;       /* Warnings — overdue, form errors */
+  --brand-card: #ffffff;         /* Cards and panels */
+  --brand-muted: #5f5f6b;        /* Secondary text — 6.3:1 on white */
+  --brand-surface: #f1f1f4;      /* Subtle fills inside cards */
+  --brand-border: #e6e6eb;       /* Hairlines */
+
+  /* Readable text colours for tinted status chips (all ≥ 6:1 on their tint) */
+  --brand-primary-ink: #6a2fd6;  /* purple text */
+  --brand-accent-ink: #0a5f8f;   /* blue text */
+  --brand-yellow-ink: #7a4f00;   /* yellow text */
+  --brand-orange-ink: #b04a14;   /* orange text */
 }
 /* ====================== END BRAND SETTINGS ============================ */
 
@@ -28,6 +35,11 @@
   --color-yellow: var(--brand-yellow);
   --color-orange: var(--brand-orange);
   --color-muted: var(--brand-muted);
+  --color-card: var(--brand-card);
+  --color-primary-ink: var(--brand-primary-ink);
+  --color-accent-ink: var(--brand-accent-ink);
+  --color-yellow-ink: var(--brand-yellow-ink);
+  --color-orange-ink: var(--brand-orange-ink);
   --color-surface: var(--brand-surface);
   --color-line: var(--brand-border);
   --font-sans: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
@@ -43,6 +55,22 @@ body {
   background: var(--brand-background);
   color: var(--brand-text);
   font-family: var(--font-sans);
+}
+
+/* Cards: white, hairline border, a whisper of depth */
+@utility card {
+  background: var(--brand-card);
+  border: 1px solid var(--brand-border);
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 2px rgb(17 17 17 / 0.04), 0 4px 16px -8px rgb(17 17 17 / 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 ::selection {
