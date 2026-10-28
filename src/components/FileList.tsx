@@ -30,7 +30,7 @@ export function FileList({ files }: { files: ClientFile[] }) {
   if (!files.length) {
     return (
       <p className="rounded-2xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
-        No files have been shared yet.
+        No documents have been shared yet.
       </p>
     );
   }

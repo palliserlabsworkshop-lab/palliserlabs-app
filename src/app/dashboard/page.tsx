@@ -5,6 +5,7 @@ import { Logo } from "@/components/Logo";
 import { TaskBoard } from "@/components/TaskBoard";
 import { FileList } from "@/components/FileList";
 import { Comments } from "@/components/Comments";
+import { AutoRefresh } from "@/components/AutoRefresh";
 import { getClient, getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
 import { getSessionClientId } from "@/lib/session";
 import { logout } from "../actions";
@@ -44,6 +45,7 @@ async function Dashboard() {
 
   return (
     <>
+      <AutoRefresh />
       <section>
         <p className="text-[0.85rem] text-muted">Welcome back,</p>
         <h1 className="mt-1 break-words font-display text-[2.1rem] font-medium leading-[1.1] tracking-tight sm:text-[2.75rem]">
@@ -69,7 +71,7 @@ async function Dashboard() {
         <TaskBoard tasks={tasks} />
       </Section>
 
-      <Section title="Files" aside={files.length ? `${files.length} shared` : undefined}>
+      <Section title="Documents" aside={files.length ? `${files.length} shared` : undefined}>
         <FileList files={files} />
       </Section>
 
