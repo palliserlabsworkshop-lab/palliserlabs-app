@@ -24,7 +24,7 @@ npm run dev
 2. **Turn on the comment capabilities.** Go to notion.so/profile/integrations, open your integration, then **Capabilities**. Enable *Read content*, *Insert content*, *Read comments* and *Insert comments*. Without the comment capabilities, the Comments section shows "unavailable".
 3. **Use these property names**, or change them in `src/lib/schema.ts`:
    - Clients: `Name`, `Email`, `Company`, `Status`, `App Password`
-   - Tasks: `Task`, `Status`, `Due date`, `Client` (a relation to Clients)
+   - Tasks: `Task`, `Status`, `Due date`, `Client` (a relation to Clients), plus `Video Link` (URL) and `Brief Data` (Text) for portal projects. `Status` needs a `Queued` option.
    - Files: `File name`, `File / URL`, `Type`, `Client` (a relation to Clients)
 
 The app reads each database's schema at runtime, so property types are flexible:
@@ -39,6 +39,10 @@ The app reads each database's schema at runtime, so property types are flexible:
 - **Login** (`src/app/actions.ts`): the email and PIN are checked on the server against the Clients DB using a timing-safe comparison. On success, the server sets an HttpOnly signed cookie that holds only the client's Notion page ID. Clients whose Status is Inactive, Archived, Disabled or Former can't sign in.
 - **Data isolation** (`src/lib/notion.ts`): every Tasks and Files query is filtered server-side by `Client` relation *contains* the page ID taken from the signed cookie. Nothing from the browser is trusted. Client data is never cached.
 - **Task columns**: *Done* goes to **Completed**. *In progress* and *Queued* go to **In Progress**, and *Queued* tasks carry a "Queued" tag.
+- **New project form**: clients submit a Google Drive link and a brief (format, purpose, style, hooks, platform, references, notes). This creates a **Queued** row in the Tasks DB linked to the client.
+  - The answers are saved in `Brief Data` as JSON option keys (e.g. `talking_head`), so the labels in `src/lib/brief.ts` can change without breaking old data.
+  - A readable copy of the brief is written into the Notion page body for the editor.
+  - Clients can open each project's brief from its task card in the app.
 - **Files** open through `/api/files/:id`. This route checks that the file belongs to the signed-in client, then redirects to a fresh link. Notion-hosted file links expire after about 1 hour.
 - **Comments** use the client's own row-page in the Clients DB as the thread.
   - Comments posted in the app appear in Notion under the client's name.

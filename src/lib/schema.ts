@@ -15,7 +15,12 @@ export const TASK_PROPS = {
   status: "Status",
   dueDate: "Due date",
   client: "Client",
+  videoLink: "Video Link", // URL — the client's Google Drive link
+  briefData: "Brief Data", // Text — the brief as JSON option keys (source of truth)
 } as const;
+
+/** Status given to projects submitted from the portal. Must exist as an option in Notion. */
+export const NEW_PROJECT_STATUS = "Queued";
 
 export const FILE_PROPS = {
   name: "File name",

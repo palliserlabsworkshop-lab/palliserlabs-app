@@ -2,9 +2,10 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { authenticateClient } from "@/lib/notion";
+import { authenticateClient, createProject, getClient } from "@/lib/notion";
+import { validateBrief, type BriefErrors } from "@/lib/brief";
 import { clearFailures, isLimited, recordFailure } from "@/lib/rate-limit";
-import { createSession, destroySession } from "@/lib/session";
+import { createSession, destroySession, getSessionClientId } from "@/lib/session";
 
 export type LoginState = { error?: string; email?: string };
 
@@ -45,4 +46,24 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 export async function logout() {
   await destroySession();
   redirect("/login");
+}
+
+export type ProjectState = { ok?: boolean; errors?: BriefErrors; formError?: string };
+
+/** Creates a Queued task in Notion from the intake form. The client comes from the session, never the form. */
+export async function submitProject(input: Record<string, unknown>): Promise<ProjectState> {
+  const clientId = await getSessionClientId();
+  const client = clientId ? await getClient(clientId) : null;
+  if (!client) redirect("/login");
+
+  const { brief, errors } = validateBrief(input);
+  if (Object.keys(errors).length) return { errors };
+
+  try {
+    await createProject(client, brief);
+  } catch (error) {
+    console.error("Failed to create project:", error);
+    return { formError: "We couldn’t send your project. Please try again in a moment." };
+  }
+  return { ok: true };
 }

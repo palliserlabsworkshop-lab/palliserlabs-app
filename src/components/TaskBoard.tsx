@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Task } from "@/lib/notion";
 import { formatDueDate, isOverdue } from "@/lib/format";
 
@@ -22,8 +23,8 @@ function TaskCard({ task }: { task: Task }) {
   const overdue = !task.done && task.dueDate !== null && isOverdue(task.dueDate);
   const queued = !task.done && task.status.toLowerCase() === "queued";
 
-  return (
-    <li className="rounded-2xl border border-line bg-white p-3.5 sm:p-4">
+  const body = (
+    <>
       <div className="flex items-start gap-2">
         {task.done && (
           <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -59,6 +60,27 @@ function TaskCard({ task }: { task: Task }) {
           </span>
         )}
       </div>
+      {task.hasBrief && (
+        <span className="mt-2.5 inline-flex items-center gap-1 text-[0.7rem] font-bold text-primary sm:text-[0.75rem]">
+          View brief
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      )}
+    </>
+  );
+
+  const card = "block rounded-2xl border border-line bg-white p-3.5 sm:p-4";
+  return (
+    <li>
+      {task.hasBrief ? (
+        <Link href={`/dashboard/projects/${task.id}`} className={`${card} transition hover:border-primary/40 active:bg-surface`}>
+          {body}
+        </Link>
+      ) : (
+        <div className={card}>{body}</div>
+      )}
     </li>
   );
 }

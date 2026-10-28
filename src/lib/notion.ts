@@ -17,8 +17,10 @@ import {
   CLIENT_PROPS,
   DONE_STATUSES,
   FILE_PROPS,
+  NEW_PROJECT_STATUS,
   TASK_PROPS,
 } from "./schema";
+import { briefRows, parseBrief, type Brief } from "./brief";
 
 // ---------------------------------------------------------------------------
 // Client + data source resolution
@@ -264,7 +266,14 @@ export async function getClient(clientId: string): Promise<ClientProfile | null>
 // Tasks
 // ---------------------------------------------------------------------------
 
-export type Task = { id: string; title: string; status: string; dueDate: string | null; done: boolean };
+export type Task = {
+  id: string;
+  title: string;
+  status: string;
+  dueDate: string | null;
+  done: boolean;
+  hasBrief: boolean;
+};
 
 export async function getTasks(clientId: string): Promise<Task[]> {
   const ds = await dataSource(env.tasksDbId);
@@ -278,11 +287,124 @@ export async function getTasks(clientId: string): Promise<Task[]> {
     return {
       id: page.id,
       title: getText(page, TASK_PROPS.title, true) || "Untitled task",
-      status: status || "Queued",
+      status: status || NEW_PROJECT_STATUS,
       dueDate: getDate(page, TASK_PROPS.dueDate),
       done: DONE_STATUSES.includes(status.toLowerCase()),
+      hasBrief: Boolean(getText(page, TASK_PROPS.briefData)),
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Projects — client-submitted briefs, stored as rows in the Tasks DB
+// ---------------------------------------------------------------------------
+
+type RichTextRequest = { type: "text"; text: { content: string; link?: { url: string } | null } };
+
+/** Notion caps each text object at 2000 characters, so long text is split across several. */
+function chunkText(text: string, link?: string): RichTextRequest[] {
+  const chunks: RichTextRequest[] = [];
+  for (let i = 0; i < text.length; i += 2000) {
+    chunks.push({ type: "text", text: { content: text.slice(i, i + 2000), link: link ? { url: link } : null } });
+  }
+  return chunks.length ? chunks : [{ type: "text", text: { content: "" } }];
+}
+
+/** The readable brief written into the Notion page body for the editor. */
+function briefBlocks(brief: Brief) {
+  const paragraph = (rich_text: RichTextRequest[]) =>
+    ({ object: "block", type: "paragraph", paragraph: { rich_text } }) as const;
+  const blocks: unknown[] = [
+    { object: "block", type: "heading_2", heading_2: { rich_text: chunkText("Client brief") } },
+  ];
+  for (const row of briefRows(brief)) {
+    blocks.push({
+      object: "block",
+      type: "heading_3",
+      heading_3: { rich_text: chunkText(row.label) },
+    });
+    if (!row.values.length) {
+      blocks.push(paragraph(chunkText("—")));
+    } else if (row.links || row.values.length > 1) {
+      for (const value of row.values) {
+        blocks.push({
+          object: "block",
+          type: "bulleted_list_item",
+          bulleted_list_item: { rich_text: chunkText(value, row.links ? value : undefined) },
+        });
+      }
+    } else {
+      blocks.push(paragraph(chunkText(row.values[0])));
+    }
+  }
+  return blocks;
+}
+
+export type ProjectResult = { id: string };
+
+/** Creates a Queued task for the client from a validated brief. */
+export async function createProject(client: ClientProfile, brief: Brief): Promise<ProjectResult> {
+  const ds = await dataSource(env.tasksDbId);
+  const names = Object.keys(ds.schema);
+  const titleName = names.find((n) => ds.schema[n] === "title") ?? TASK_PROPS.title;
+  const statusName = resolveName(names, TASK_PROPS.status);
+  const linkName = resolveName(names, TASK_PROPS.videoLink);
+  const briefName = resolveName(names, TASK_PROPS.briefData);
+  const clientName = resolveName(names, TASK_PROPS.client);
+
+  // Built loosely and only for properties that exist, so a missing column never blocks a submission.
+  const properties: Record<string, unknown> = {
+    [titleName]: { title: chunkText(brief.projectName) },
+    [clientName]: { relation: [{ id: client.id }] },
+  };
+  if (ds.schema[linkName] === "url") properties[linkName] = { url: brief.driveLink };
+  else if (ds.schema[linkName] === "rich_text") properties[linkName] = { rich_text: chunkText(brief.driveLink) };
+  if (ds.schema[briefName] === "rich_text") properties[briefName] = { rich_text: chunkText(JSON.stringify(brief)) };
+
+  const withStatus = { ...properties };
+  if (ds.schema[statusName] === "status") withStatus[statusName] = { status: { name: NEW_PROJECT_STATUS } };
+  if (ds.schema[statusName] === "select") withStatus[statusName] = { select: { name: NEW_PROJECT_STATUS } };
+
+  const create = (props: Record<string, unknown>) =>
+    notion().pages.create({
+      parent: { data_source_id: ds.id },
+      properties: props as Parameters<Client["pages"]["create"]>[0]["properties"],
+      children: briefBlocks(brief) as Parameters<Client["pages"]["create"]>[0]["children"],
+    });
+
+  try {
+    const page = await create(withStatus);
+    return { id: page.id };
+  } catch (error) {
+    // If "Queued" isn't a Status option in Notion, still save the project rather than lose it.
+    if (!isNotionClientError(error) || error.code !== APIErrorCode.ValidationError) throw error;
+    console.error(`Could not set Status to "${NEW_PROJECT_STATUS}" — check the option exists in Notion.`, error);
+    const page = await create(properties);
+    return { id: page.id };
+  }
+}
+
+export type Project = Task & { brief: Brief | null };
+
+/** Loads one task for the client (only found if its Client relation is this client). */
+export async function getProject(clientId: string, taskId: string): Promise<Project | null> {
+  if (!/^[0-9a-f-]{32,36}$/i.test(taskId)) return null;
+  const ds = await dataSource(env.tasksDbId);
+  const pages = await queryAll(ds, belongsToClient(resolveName(Object.keys(ds.schema), TASK_PROPS.client), clientId));
+  const target = normalizeNotionId(taskId);
+  const page = pages.find((p) => normalizeNotionId(p.id) === target);
+  if (!page) return null;
+  const status = getText(page, TASK_PROPS.status);
+  const briefJson = getText(page, TASK_PROPS.briefData);
+  return {
+    id: page.id,
+    title: getText(page, TASK_PROPS.title, true) || "Untitled task",
+    status: status || NEW_PROJECT_STATUS,
+    dueDate: getDate(page, TASK_PROPS.dueDate),
+    done: DONE_STATUSES.includes(status.toLowerCase()),
+    hasBrief: Boolean(briefJson),
+    brief: briefJson ? parseBrief(briefJson) : null,
+  };
 }
 
 // ---------------------------------------------------------------------------
