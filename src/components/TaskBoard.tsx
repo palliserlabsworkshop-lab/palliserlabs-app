@@ -43,7 +43,7 @@ function TaskCard({ task }: { task: Task }) {
         )}
       </div>
       {task.hasBrief && (
-        <span className="mt-3 inline-flex items-center gap-1 text-[0.72rem] font-bold text-primary-ink">
+        <span className="mt-3 inline-flex items-center gap-1 text-[0.72rem] font-bold text-foreground">
           View brief
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitProject } from "@/app/actions";
 import {
@@ -66,7 +66,7 @@ function GroupHeader({
     <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
       <span className="text-[0.85rem] font-bold text-foreground">
         {label}
-        {required && <span className="ml-0.5 text-primary">*</span>}
+        {required && <span className="ml-0.5 text-orange">*</span>}
         {hint && <span className="ml-2 text-[0.75rem] font-normal text-muted">{hint}</span>}
       </span>
       <FieldError id={errorId} message={error} />
@@ -154,6 +154,14 @@ export function ProjectForm() {
   const [errors, setErrors] = useState<BriefErrors>({});
   const [formError, setFormError] = useState("");
   const [submitted, setSubmitted] = useState("");
+  const [celebrating, setCelebrating] = useState(false);
+
+  // After a successful submit, the button flashes green with a tick, then settles back.
+  useEffect(() => {
+    if (!celebrating) return;
+    const t = setTimeout(() => setCelebrating(false), 2600);
+    return () => clearTimeout(t);
+  }, [celebrating]);
   const [pending, startTransition] = useTransition();
 
   const set = <K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) => {
@@ -194,6 +202,7 @@ export function ProjectForm() {
         setFormError(result.formError);
       } else if (result.ok) {
         setSubmitted(values.projectName);
+        setCelebrating(true);
         setValues(EMPTY);
         setErrors({});
         setOpen(false);
@@ -215,14 +224,48 @@ export function ProjectForm() {
         </p>
         <button
           type="button"
+          disabled={celebrating}
           onClick={() => {
             setOpen(true);
             setSubmitted("");
           }}
-          className="pressable mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.9rem] font-bold text-white hover:bg-primary-ink sm:w-auto sm:px-7"
+          className={`mt-4 grid h-12 w-full place-items-center rounded-full px-7 text-[0.9rem] font-bold text-white transition-[background-color,box-shadow,transform] duration-500 ease-[var(--ease-out-soft)] active:scale-[0.96] active:duration-100 sm:w-auto ${
+            celebrating
+              ? "bg-success shadow-[0_8px_24px_-8px_rgb(21_128_61/0.55)]"
+              : "bg-foreground hover:bg-primary-ink"
+          }`}
         >
-          <span aria-hidden className="text-lg leading-none">+</span>
-          Start a new project
+          {/* Both labels share one grid cell so they cross-fade without the button changing size */}
+          <span
+            className={`col-start-1 row-start-1 flex items-center gap-2 transition-[opacity,transform] duration-400 ease-[var(--ease-out-soft)] ${
+              celebrating ? "scale-90 opacity-0" : "scale-100 opacity-100 delay-150"
+            }`}
+          >
+            <span aria-hidden className="text-lg leading-none">+</span>
+            Start a new project
+          </span>
+          <span
+            aria-hidden={!celebrating}
+            className={`col-start-1 row-start-1 flex items-center gap-2 transition-[opacity,transform] duration-400 ease-[var(--ease-spring)] ${
+              celebrating ? "scale-100 opacity-100 delay-100" : "scale-75 opacity-0"
+            }`}
+          >
+            {celebrating && (
+              <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] animate-pop" fill="none" aria-hidden>
+                <circle cx="12" cy="12" r="11" fill="white" fillOpacity="0.22" />
+                <path
+                  d="M7 12.5l3.2 3.2L17 8.8"
+                  stroke="white"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="16"
+                  className="animate-draw [--dash:16]"
+                />
+              </svg>
+            )}
+            Project sent
+          </span>
         </button>
       </div>
     );
@@ -248,7 +291,7 @@ export function ProjectForm() {
     >
       <div className="flex items-start justify-between gap-4">
         <p className="text-[0.8rem] text-muted">
-          Fields marked <span className="font-bold text-primary">*</span> are required.
+          Fields marked <span className="font-bold text-orange">*</span> are required.
         </p>
         <button
           type="button"
@@ -263,7 +306,7 @@ export function ProjectForm() {
       <div data-field="projectName">
         <label htmlFor="projectName" className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3">
           <span className="text-[0.85rem] font-bold text-foreground">
-            Project name<span className="ml-0.5 text-primary">*</span>
+            Project name<span className="ml-0.5 text-orange">*</span>
           </span>
           <FieldError id="err-projectName" message={errors.projectName} />
         </label>
@@ -283,7 +326,7 @@ export function ProjectForm() {
       <div data-field="driveLink">
         <label htmlFor="driveLink" className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3">
           <span className="text-[0.85rem] font-bold text-foreground">
-            Google Drive link<span className="ml-0.5 text-primary">*</span>
+            Google Drive link<span className="ml-0.5 text-orange">*</span>
           </span>
           <FieldError id="err-driveLink" message={errors.driveLink} />
         </label>
@@ -434,19 +477,32 @@ export function ProjectForm() {
                 role="radio"
                 aria-checked={checked}
                 onClick={() => set("hookCount", n)}
-                className={`pressable min-h-11 rounded-xl text-[0.85rem] font-bold ${
+                className={`pressable flex min-h-12 flex-col items-center justify-center rounded-xl py-1.5 text-[0.85rem] font-bold leading-tight ${
                   checked ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted hover:text-foreground"
                 }`}
               >
                 {n === 1 ? "1 hook" : `${n} hooks`}
+                <span className={`text-[0.66rem] font-bold ${n === 1 ? "text-muted" : "text-orange-ink"}`}>
+                  {n === 1 ? "Included" : "Extra cost"}
+                </span>
               </button>
             );
           })}
         </div>
-        <p className="mt-2 text-[0.75rem] text-muted">
-          {values.hookCount > 1
-            ? `We’ll cut ${values.hookCount} different openings so you can test which performs best.`
-            : "One opening hook. Add variants to test different openings."}
+        <p
+          key={values.hookCount > 1 ? "paid" : "free"}
+          className={`mt-2 animate-rise rounded-xl px-3.5 py-2.5 text-[0.75rem] leading-relaxed ${
+            values.hookCount > 1 ? "bg-orange/10 text-orange-ink" : "text-muted"
+          }`}
+        >
+          {values.hookCount > 1 ? (
+            <>
+              <strong>Additional charges apply.</strong> Each extra hook variant is billed on top of your project. We’ll
+              confirm the cost with you before we start.
+            </>
+          ) : (
+            "One opening hook is included. Add variants to test different openings (extra cost)."
+          )}
         </p>
       </div>
 

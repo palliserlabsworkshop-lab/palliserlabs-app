@@ -13,7 +13,8 @@
 
   /* Supporting brand colours (from the Palliser Labs palette) */
   --brand-yellow: #febd59;       /* Also means "Queued" */
-  --brand-orange: #ff914c;       /* Warnings — overdue, form errors */
+  --brand-orange: #ff914c;       /* Warnings — overdue, form errors; required-field asterisks */
+  --brand-success: #15803d;      /* Success flash on "Start a new project" — 5.0:1 with white text */
   --brand-card: #ffffff;         /* Cards and panels */
   --brand-muted: #5f5f6b;        /* Secondary text — 6.3:1 on white */
   --brand-surface: #f1f1f4;      /* Subtle fills inside cards */
@@ -36,6 +37,7 @@
   --color-orange: var(--brand-orange);
   --color-muted: var(--brand-muted);
   --color-card: var(--brand-card);
+  --color-success: var(--brand-success);
   --color-primary-ink: var(--brand-primary-ink);
   --color-accent-ink: var(--brand-accent-ink);
   --color-yellow-ink: var(--brand-yellow-ink);
@@ -78,6 +80,7 @@ body {
   --animate-pop: pop 0.35s var(--ease-spring) both;
   --animate-grow: grow 0.9s var(--ease-out-soft) both;
   --animate-float-in: float-in 0.7s var(--ease-spring) 0.35s both;
+  --animate-draw: draw 0.45s var(--ease-out-soft) 0.2s both;
 
   @keyframes rise {
     from { opacity: 0; transform: translateY(14px); }
@@ -90,6 +93,10 @@ body {
   @keyframes grow {
     from { transform: scaleX(0); }
     to { transform: none; }
+  }
+  @keyframes draw {
+    from { stroke-dashoffset: var(--dash, 24); }
+    to { stroke-dashoffset: 0; }
   }
   @keyframes float-in {
     from { opacity: 0; transform: translateY(24px) scale(0.96); }
