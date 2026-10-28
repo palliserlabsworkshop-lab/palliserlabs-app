@@ -19,7 +19,7 @@ export const TASK_PROPS = {
 
 export const FILE_PROPS = {
   name: "File name",
-  file: "File/URL",
+  file: "File / URL",
   type: "Type",
   client: "Client",
 } as const;

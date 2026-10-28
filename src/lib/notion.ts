@@ -79,6 +79,22 @@ async function queryAll(ds: DataSource, filter?: Filter, sorts?: Sorts): Promise
 
 type Property = PageObjectResponse["properties"][string];
 
+/** Column names are matched ignoring case, spaces and punctuation ("File / URL" = "File/URL"). */
+function looseKey(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** Returns the property's real name as it appears in Notion, or the given name if none matches. */
+function resolveName(names: Iterable<string>, wanted: string): string {
+  const list = [...names];
+  if (list.includes(wanted)) return wanted;
+  return list.find((n) => looseKey(n) === looseKey(wanted)) ?? wanted;
+}
+
+function findProp(page: PageObjectResponse, name: string): Property | undefined {
+  return page.properties[resolveName(Object.keys(page.properties), name)];
+}
+
 function richText(items: { plain_text: string }[]): string {
   return items.map((t) => t.plain_text).join("");
 }
@@ -117,21 +133,21 @@ function propText(prop: Property | undefined): string {
 
 /** Reads a named property, falling back to the page title for title-like fields. */
 function getText(page: PageObjectResponse, name: string, fallbackToTitle = false): string {
-  const prop = page.properties[name];
+  const prop = findProp(page, name);
   if (prop || !fallbackToTitle) return propText(prop).trim();
   const title = Object.values(page.properties).find((p) => p.type === "title");
   return propText(title).trim();
 }
 
 function getDate(page: PageObjectResponse, name: string): string | null {
-  const prop = page.properties[name];
+  const prop = findProp(page, name);
   if (prop?.type === "date") return prop.date?.start ?? null;
   if (prop?.type === "formula" && prop.formula.type === "date") return prop.formula.date?.start ?? null;
   return null;
 }
 
 function readFileLink(page: PageObjectResponse, name: string): string | null {
-  const prop = page.properties[name];
+  const prop = findProp(page, name);
   if (!prop) return null;
   if (prop.type === "files") {
     const first = prop.files[0];
@@ -143,7 +159,8 @@ function readFileLink(page: PageObjectResponse, name: string): string | null {
 }
 
 /** Builds an "equals" filter appropriate for the property's actual type. */
-function equalsFilter(schema: Schema, property: string, value: string): Filter | null {
+function equalsFilter(schema: Schema, wanted: string, value: string): Filter | null {
+  const property = resolveName(Object.keys(schema), wanted);
   switch (schema[property]) {
     case "email":
       return { property, email: { equals: value } };
@@ -251,10 +268,11 @@ export type Task = { id: string; title: string; status: string; dueDate: string 
 
 export async function getTasks(clientId: string): Promise<Task[]> {
   const ds = await dataSource(env.tasksDbId);
-  const sorts: Sorts = ds.schema[TASK_PROPS.dueDate]
-    ? [{ property: TASK_PROPS.dueDate, direction: "ascending" }]
+  const dueDate = resolveName(Object.keys(ds.schema), TASK_PROPS.dueDate);
+  const sorts: Sorts = ds.schema[dueDate]
+    ? [{ property: dueDate, direction: "ascending" }]
     : undefined;
-  const pages = await queryAll(ds, belongsToClient(TASK_PROPS.client, clientId), sorts);
+  const pages = await queryAll(ds, belongsToClient(resolveName(Object.keys(ds.schema), TASK_PROPS.client), clientId), sorts);
   return pages.map((page) => {
     const status = getText(page, TASK_PROPS.status);
     return {
@@ -275,7 +293,7 @@ export type ClientFile = { id: string; name: string; type: string; hasLink: bool
 
 async function queryClientFiles(clientId: string) {
   const ds = await dataSource(env.filesDbId);
-  return queryAll(ds, belongsToClient(FILE_PROPS.client, clientId), [
+  return queryAll(ds, belongsToClient(resolveName(Object.keys(ds.schema), FILE_PROPS.client), clientId), [
     { timestamp: "created_time", direction: "descending" },
   ]);
 }

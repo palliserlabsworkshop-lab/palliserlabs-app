@@ -25,13 +25,13 @@ npm run dev
 3. **Use these property names**, or change them in `src/lib/schema.ts`:
    - Clients: `Name`, `Email`, `Company`, `Status`, `App Password`
    - Tasks: `Task`, `Status`, `Due date`, `Client` (a relation to Clients)
-   - Files: `File name`, `File/URL`, `Type`, `Client` (a relation to Clients)
+   - Files: `File name`, `File / URL`, `Type`, `Client` (a relation to Clients)
 
 The app reads each database's schema at runtime, so property types are flexible:
 - `Email` can be an Email or Text property.
 - `App Password` can be Text or Number. Leading zeros are restored, so `0042` works.
 - `Status` can be Status or Select.
-- `File/URL` can be a Files & media or URL property.
+- `File / URL` can be a Files & media or URL property.
 
 ## How it works
 
@@ -54,3 +54,4 @@ All colours live in one commented block at the top of `src/app/globals.css`. The
 1. Push this folder to a Git repository and import it in Vercel.
 2. Under **Settings → Environment Variables**, add all five variables from the table above.
 3. Deploy.
+- Column names are matched ignoring case, spaces and punctuation, so `File/URL` and `File / URL` both work.
