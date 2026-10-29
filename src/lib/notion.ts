@@ -441,6 +441,12 @@ export async function recordDownload(clientId: string, taskId: string): Promise<
   return link;
 }
 
+/** The final video link for one of this client's tasks (no side effects). */
+export async function getFinalVideoLink(clientId: string, taskId: string): Promise<string | null> {
+  const page = await getOwnedTaskPage(clientId, taskId);
+  return page ? getText(page, TASK_PROPS.finalVideo) || null : null;
+}
+
 /** Per-video feedback thread: comments on the task's own Notion page. */
 export async function getTaskComments(clientId: string, taskId: string): Promise<PortalComment[] | null> {
   const page = await getOwnedTaskPage(clientId, taskId);

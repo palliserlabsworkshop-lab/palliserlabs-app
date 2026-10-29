@@ -9,68 +9,81 @@ import { formatDueDate } from "@/lib/format";
 import { Comments } from "./Comments";
 
 
-function Player({ link }: { link: string }) {
+/** SF Symbols–style play glyph. Its triangle centroid sits on the circle's centre, so it reads as centred. */
+function PlayGlyph({ className }: { className: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+      <path d="M9.2 6.6v10.8c0 .7.8 1.1 1.4.7l8.2-5.4a.85.85 0 0 0 0-1.4l-8.2-5.4c-.6-.4-1.4 0-1.4.7Z" />
+    </svg>
+  );
+}
+
+function FolderGlyph({ className }: { className: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * Video tile. Drive's embedded player is blocked by phone browsers, so this is a cover
+ * that opens the video in Google Drive. With a thumbnail: the frame fills the tile with a
+ * frosted play button. Without one (folders, processing, private): a light, quiet tile.
+ */
+function Player({ link, taskId }: { link: string; taskId: string }) {
   const info = driveInfo(link);
-  // Only reveal the thumbnail once it has actually loaded — never a broken-image icon.
-  const [thumbLoaded, setThumbLoaded] = useState(false);
   const isFolder = info?.kind === "folder";
+  const [thumbLoaded, setThumbLoaded] = useState(false);
+  const label = isFolder ? "Open folder" : "Watch video";
 
   return (
     <a
       href={link}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={isFolder ? "Open the video folder in Google Drive" : "Watch the video in Google Drive"}
-      className="group relative block aspect-video overflow-hidden rounded-2xl bg-foreground ring-1 ring-line"
+      aria-label={`${label} in Google Drive`}
+      className="pressable group relative block aspect-video overflow-hidden rounded-2xl bg-gradient-to-b from-[#f4f4f7] to-[#e9e9ee] ring-1 ring-inset ring-black/5"
     >
-      {/* Branded cover — shown for folders, and until (or unless) a thumbnail loads */}
-      <span className="absolute left-5 top-5 flex h-12 items-start gap-1.5 opacity-50" aria-hidden>
-        <span className="h-12 w-3.5 rounded-full bg-yellow" />
-        <span className="h-5 w-3.5 rounded-full bg-orange" />
-        <span className="h-12 w-3.5 rounded-full bg-accent" />
-        <span className="mt-7 h-5 w-3.5 rounded-full bg-primary" />
-      </span>
-      {info?.thumbnail && (
-        // eslint-disable-next-line @next/next/no-img-element -- remote Drive thumbnail, not worth optimising
+      {info?.kind === "file" && (
+        // eslint-disable-next-line @next/next/no-img-element -- served by our own thumbnail route
         <img
-          src={info.thumbnail}
+          src={`/api/videos/${taskId}/thumbnail`}
           alt=""
-          referrerPolicy="no-referrer"
           ref={(img) => {
             if (img?.complete && img.naturalWidth > 0) setThumbLoaded(true);
           }}
           onLoad={() => setThumbLoaded(true)}
-          className={`absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] ${
-            thumbLoaded ? "opacity-90 group-hover:opacity-100" : "invisible opacity-0"
+          className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-700 ease-[var(--ease-out-soft)] group-hover:scale-[1.02] ${
+            thumbLoaded ? "opacity-100" : "invisible opacity-0"
           }`}
         />
       )}
-      <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" aria-hidden />
 
-      {/* Play button */}
-      <span className="absolute inset-0 flex items-center justify-center" aria-hidden>
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 shadow-lg backdrop-blur transition duration-300 ease-[var(--ease-spring)] group-hover:scale-110 group-active:scale-95">
-          {isFolder ? (
-            <svg viewBox="0 0 24 24" className="h-7 w-7 text-foreground" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2h9A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5Z" strokeLinejoin="round" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" className="ml-1 h-7 w-7 text-foreground" fill="currentColor">
-              <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />
-            </svg>
-          )}
+      {thumbLoaded ? (
+        <>
+          <span className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" aria-hidden />
+          <span className="absolute inset-0 flex items-center justify-center" aria-hidden>
+            <span className="glass flex h-[60px] w-[60px] items-center justify-center rounded-full transition-transform duration-300 ease-[var(--ease-spring)] group-hover:scale-105">
+              <PlayGlyph className="h-7 w-7 text-foreground" />
+            </span>
+          </span>
+          <span className="absolute inset-x-0 bottom-0 flex items-center justify-between px-4 pb-3 text-[0.78rem] font-bold text-white">
+            {label}
+            <span className="font-normal opacity-85">Google Drive ↗</span>
+          </span>
+        </>
+      ) : (
+        <span className="absolute inset-0 flex flex-col items-center justify-center gap-3" aria-hidden>
+          <span className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-foreground text-white shadow-[0_8px_20px_-8px_rgb(17_17_17/0.45)] transition-transform duration-300 ease-[var(--ease-spring)] group-hover:scale-105">
+            {isFolder ? <FolderGlyph className="h-6 w-6" /> : <PlayGlyph className="h-[26px] w-[26px]" />}
+          </span>
+          <span className="text-center">
+            <span className="block text-[0.9rem] font-bold text-foreground">{label}</span>
+            <span className="mt-0.5 block text-[0.72rem] text-muted">Opens in Google Drive</span>
+          </span>
         </span>
-      </span>
-
-      <span className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 px-4 pb-3.5 text-white">
-        <span className="text-[0.85rem] font-bold">{isFolder ? "Open folder" : "Watch video"}</span>
-        <span className="inline-flex items-center gap-1 text-[0.72rem] font-bold opacity-85">
-          Opens in Google Drive
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden>
-            <path d="M5 11l6-6M6 5h5v5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
-      </span>
+      )}
     </a>
   );
 }
@@ -260,7 +273,7 @@ function ReviewCard({ task }: { task: Task }) {
   return (
     <article className="card animate-rise overflow-hidden ring-2 ring-orange/40">
       {header}
-      <div className="px-5 pt-4">{task.finalVideo ? <Player link={task.finalVideo} /> : null}</div>
+      <div className="px-5 pt-4">{task.finalVideo ? <Player link={task.finalVideo} taskId={task.id} /> : null}</div>
 
       <div className="p-5">
         {flash ? (
