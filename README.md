@@ -68,7 +68,7 @@ The app reads each database's schema at runtime, so property types are flexible:
 
 ## Branding
 
-All colours live in one commented block at the top of `src/app/globals.css`. The brand fonts are in `src/fonts`: Sora for the body, and Aspekta for headings and the wordmark. The logo is an SVG in `src/components/Logo.tsx`.
+All colours live in one commented block at the top of `src/app/globals.css`, with a dark set underneath it. Dark mode follows the device setting until the sun/moon button in the header is used, and that choice is remembered on the device. The brand fonts are in `src/fonts`: Sora for the body, and Aspekta for headings and the wordmark. The logo is an SVG in `src/components/Logo.tsx`.
 
 ## Deploy to Vercel
 

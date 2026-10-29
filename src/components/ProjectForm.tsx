@@ -39,7 +39,7 @@ const FIELD_ORDER: BriefField[] = [
 ];
 
 const inputClass =
-  "h-12 w-full rounded-xl border bg-white px-3.5 text-base text-foreground placeholder:text-muted/60 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]";
+  "h-12 w-full rounded-xl border bg-card px-3.5 text-base text-foreground placeholder:text-muted/60 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]";
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
@@ -103,7 +103,7 @@ function ChipGroup({
             key={o.key}
             className={`pressable inline-flex min-h-11 cursor-pointer select-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[0.8rem] font-bold transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-primary/20 ${
               checked
-                ? "border-foreground bg-foreground text-white"
+                ? "border-foreground bg-foreground text-on-ink"
                 : disabled
                   ? "cursor-not-allowed border-line bg-surface text-muted/50"
                   : invalid
@@ -235,7 +235,7 @@ export function ProjectForm() {
             setOpen(true);
             setSubmitted("");
           }}
-          className={`mt-4 grid h-12 w-full place-items-center rounded-full px-7 text-[0.9rem] font-bold text-white transition-[background-color,box-shadow,transform] duration-500 ease-[var(--ease-out-soft)] active:scale-[0.96] active:duration-100 sm:w-auto ${
+          className={`mt-4 grid h-12 w-full place-items-center rounded-full px-7 text-[0.9rem] font-bold text-on-ink transition-[background-color,box-shadow,transform] duration-500 ease-[var(--ease-out-soft)] active:scale-[0.96] active:duration-100 sm:w-auto ${
             celebrating
               ? "bg-success shadow-[0_8px_24px_-8px_rgb(21_128_61/0.55)]"
               : "bg-foreground hover:bg-primary-ink"
@@ -258,10 +258,10 @@ export function ProjectForm() {
           >
             {celebrating && (
               <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] animate-pop" fill="none" aria-hidden>
-                <circle cx="12" cy="12" r="11" fill="white" fillOpacity="0.22" />
+                <circle cx="12" cy="12" r="11" fill="currentColor" fillOpacity="0.22" />
                 <path
                   d="M7 12.5l3.2 3.2L17 8.8"
-                  stroke="white"
+                  stroke="currentColor"
                   strokeWidth="2.4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -400,7 +400,7 @@ export function ProjectForm() {
                 aria-pressed={checked}
                 onClick={() => set("deadline", q.value)}
                 className={`pressable min-h-11 rounded-full border px-4 text-[0.8rem] font-bold ${
-                  checked ? "border-foreground bg-foreground text-white" : "border-line bg-card text-foreground hover:border-foreground/30"
+                  checked ? "border-foreground bg-foreground text-on-ink" : "border-line bg-card text-foreground hover:border-foreground/30"
                 }`}
               >
                 {q.label}
@@ -620,7 +620,7 @@ export function ProjectForm() {
           value={values.notes}
           onChange={(e) => set("notes", e.target.value)}
           placeholder="Anything else we should know?"
-          className="w-full resize-y rounded-xl border border-line bg-white px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]"
+          className="w-full resize-y rounded-xl border border-line bg-card px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]"
         />
       </div>
 
@@ -638,9 +638,9 @@ export function ProjectForm() {
       <button
         type="submit"
         disabled={pending}
-        className="pressable flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-white hover:bg-primary-ink disabled:cursor-wait disabled:opacity-70"
+        className="pressable flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-on-ink hover:bg-primary-ink disabled:cursor-wait disabled:opacity-70"
       >
-        {pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden />}
+        {pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-ink/30 border-t-on-ink" aria-hidden />}
         {pending ? "Sending…" : "Done"}
       </button>
     </form>

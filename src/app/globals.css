@@ -25,6 +25,48 @@
   --brand-accent-ink: #0a5f8f;   /* blue text */
   --brand-yellow-ink: #7a4f00;   /* yellow text */
   --brand-orange-ink: #b04a14;   /* orange text */
+
+  --brand-on-ink: #ffffff;       /* Text on ink-filled buttons */
+  --brand-tile: #e9e9ee;         /* Lower edge of the video tile gradient */
+  color-scheme: light;
+}
+
+/* ---- Dark appearance -----------------------------------------------------
+   Follows the device setting, unless the sun/moon toggle chose one (data-theme).
+   Every pair below is ≥ 6:1 contrast. */
+:root[data-theme="dark"] {
+  --brand-background: #0f0f11;
+  --brand-text: #f5f5f7;
+  --brand-card: #1c1c1f;
+  --brand-muted: #a1a1aa;
+  --brand-surface: #26262b;
+  --brand-border: #303036;
+  --brand-primary-ink: #c9adff;
+  --brand-accent-ink: #8fd3ff;
+  --brand-yellow-ink: #ffd08a;
+  --brand-orange-ink: #ffab7a;
+  --brand-success: #34c759;
+  --brand-on-ink: #0f0f11;
+  --brand-tile: #1c1c1f;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --brand-background: #0f0f11;
+    --brand-text: #f5f5f7;
+    --brand-card: #1c1c1f;
+    --brand-muted: #a1a1aa;
+    --brand-surface: #26262b;
+    --brand-border: #303036;
+    --brand-primary-ink: #c9adff;
+    --brand-accent-ink: #8fd3ff;
+    --brand-yellow-ink: #ffd08a;
+    --brand-orange-ink: #ffab7a;
+    --brand-success: #34c759;
+    --brand-on-ink: #0f0f11;
+    --brand-tile: #1c1c1f;
+    color-scheme: dark;
+  }
 }
 /* ====================== END BRAND SETTINGS ============================ */
 
@@ -38,6 +80,7 @@
   --color-muted: var(--brand-muted);
   --color-card: var(--brand-card);
   --color-success: var(--brand-success);
+  --color-on-ink: var(--brand-on-ink);
   --color-primary-ink: var(--brand-primary-ink);
   --color-accent-ink: var(--brand-accent-ink);
   --color-yellow-ink: var(--brand-yellow-ink);
@@ -59,6 +102,7 @@ html {
 }
 
 body {
+  transition: background-color 0.3s var(--ease-out-soft), color 0.3s var(--ease-out-soft);
   background: var(--brand-background);
   color: var(--brand-text);
   font-family: var(--font-sans);
@@ -127,14 +171,14 @@ body {
 
 /* Floating functional layer (header, bottom bar) — the only place glass is used */
 @utility glass {
-  background: rgb(255 255 255 / 0.72);
+  background: color-mix(in srgb, var(--brand-card) 72%, transparent);
   backdrop-filter: blur(24px) saturate(1.4);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  border: 1px solid rgb(255 255 255 / 0.6);
-  box-shadow: 0 0 0 1px rgb(17 17 17 / 0.05), 0 12px 40px -12px rgb(17 17 17 / 0.22),
-    inset 0 1px 0 rgb(255 255 255 / 0.8);
+  border: 1px solid color-mix(in srgb, var(--brand-text) 8%, transparent);
+  box-shadow: 0 0 0 1px rgb(17 17 17 / 0.05), 0 12px 40px -12px rgb(0 0 0 / 0.3),
+    inset 0 1px 0 color-mix(in srgb, white 35%, transparent);
   @media (prefers-reduced-transparency: reduce) {
-    background: rgb(255 255 255 / 0.97);
+    background: var(--brand-card);
   }
 }
 
@@ -143,6 +187,34 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Sun/moon toggle: icon swap follows the same rules as the colour tokens */
+.theme-icon-moon,
+.theme-icon-sun {
+  transition: opacity 0.35s var(--ease-out-soft), transform 0.5s var(--ease-out-soft);
+}
+.theme-icon-sun {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.6);
+}
+:root[data-theme="dark"] .theme-icon-moon {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.6);
+}
+:root[data-theme="dark"] .theme-icon-sun {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-icon-moon {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.6);
+  }
+  :root:not([data-theme="light"]) .theme-icon-sun {
+    opacity: 1;
+    transform: none;
   }
 }
 

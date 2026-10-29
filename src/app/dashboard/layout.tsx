@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { logout } from "../actions";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   return (
@@ -10,14 +11,17 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
           <Link href="/dashboard" aria-label="Dashboard">
             <Logo />
           </Link>
-          <form action={logout}>
+          <div className="-mr-2 flex items-center gap-1">
+            <ThemeToggle />
+            <form action={logout}>
             <button
               type="submit"
-              className="pressable -mr-2 min-h-11 rounded-full px-4 text-[0.85rem] font-bold text-muted hover:bg-card hover:text-foreground"
+              className="pressable min-h-11 rounded-full px-4 text-[0.85rem] font-bold text-muted hover:bg-card hover:text-foreground"
             >
               Sign out
             </button>
           </form>
+          </div>
         </div>
       </header>
 

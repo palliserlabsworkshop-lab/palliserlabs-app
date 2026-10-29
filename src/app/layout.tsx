@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { themeInitScript } from "@/lib/theme";
 
 const sora = localFont({
   variable: "--font-sora",
@@ -30,12 +31,19 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#ffffff",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f6f8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f0f11" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${sora.variable} ${aspekta.variable} h-full antialiased`}>
+    // suppressHydrationWarning: the theme script may set data-theme before React loads.
+    <html lang="en" className={`${sora.variable} ${aspekta.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

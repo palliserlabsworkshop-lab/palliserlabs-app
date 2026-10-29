@@ -23,7 +23,7 @@ export function LoginForm() {
           required
           defaultValue={state.email}
           placeholder="you@company.com"
-          className="h-13 w-full rounded-2xl border border-line bg-white px-4 text-base text-foreground placeholder:text-muted/60 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
+          className="h-13 w-full rounded-2xl border border-line bg-card px-4 text-base text-foreground placeholder:text-muted/60 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
         />
       </div>
 
@@ -45,7 +45,7 @@ export function LoginForm() {
             const el = e.currentTarget;
             el.value = el.value.replace(/\D/g, "").slice(0, 4);
           }}
-          className="h-13 w-full rounded-2xl border border-line bg-white px-4 text-center text-2xl tracking-[0.75em] text-foreground placeholder:tracking-[0.5em] placeholder:text-muted/40 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
+          className="h-13 w-full rounded-2xl border border-line bg-card px-4 text-center text-2xl tracking-[0.75em] text-foreground placeholder:tracking-[0.5em] placeholder:text-muted/40 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
         />
         <p className="text-[0.75rem] text-muted">The 4-digit code we shared with you.</p>
       </div>
@@ -59,10 +59,10 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="pressable flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-white hover:bg-primary-ink disabled:cursor-wait disabled:opacity-70"
+        className="pressable flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-on-ink hover:bg-primary-ink disabled:cursor-wait disabled:opacity-70"
       >
         {pending && (
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden />
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-ink/30 border-t-on-ink" aria-hidden />
         )}
         {pending ? "Signing in…" : "Sign in"}
       </button>

@@ -128,7 +128,7 @@ export function Comments({
               <div
                 className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-[0.9rem] leading-relaxed ${
                   c.fromClient
-                    ? "rounded-br-md bg-foreground text-white"
+                    ? "rounded-br-md bg-foreground text-on-ink"
                     : "rounded-bl-md bg-surface text-foreground"
                 }`}
               >
@@ -166,16 +166,16 @@ export function Comments({
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(e);
             }}
             placeholder={placeholder}
-            className="min-h-11 flex-1 resize-none rounded-[1.375rem] border border-line bg-surface px-3.5 py-2.5 text-base leading-snug text-foreground placeholder:text-muted/70 focus:border-primary focus:bg-white focus:outline-none sm:text-[0.9rem]"
+            className="min-h-11 flex-1 resize-none rounded-[1.375rem] border border-line bg-surface px-3.5 py-2.5 text-base leading-snug text-foreground placeholder:text-muted/70 focus:border-primary focus:bg-card focus:outline-none sm:text-[0.9rem]"
           />
           <button
             type="submit"
             disabled={sending || !draft.trim()}
             aria-label="Send message"
-            className="pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-foreground text-white hover:bg-primary-ink disabled:opacity-30"
+            className="pressable flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-foreground text-on-ink hover:bg-primary-ink disabled:opacity-30"
           >
             {sending ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-ink/30 border-t-on-ink" />
             ) : (
               <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden>
                 <path d="M10 16V4M5 9l5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />

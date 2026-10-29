@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Logo } from "@/components/Logo";
 import { LoginForm } from "./LoginForm";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export const metadata: Metadata = { title: "Sign in — Palliser Labs" };
 
@@ -8,7 +9,12 @@ export default function LoginPage() {
   return (
     <main className="flex flex-1 flex-col px-6 pb-10 pt-[max(2.5rem,env(safe-area-inset-top))]">
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col">
-        <Logo />
+        <div className="flex items-center justify-between">
+          <Logo />
+          <span className="-mr-2">
+            <ThemeToggle />
+          </span>
+        </div>
 
         <div className="flex flex-1 flex-col justify-center py-12">
           <h1 className="font-display text-[2rem] font-medium leading-tight tracking-tight">

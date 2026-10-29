@@ -43,7 +43,7 @@ export function FileList({ files }: { files: ClientFile[] }) {
           <>
             <span
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-              style={{ background: `color-mix(in srgb, ${color} 14%, white)`, color }}
+              style={{ background: `color-mix(in srgb, ${color} 16%, var(--brand-card))`, color }}
             >
               <FileIcon />
             </span>
@@ -64,7 +64,7 @@ export function FileList({ files }: { files: ClientFile[] }) {
                 className="group flex min-h-16 items-center gap-3.5 px-4 py-3.5 transition-colors hover:bg-surface/60 active:bg-surface"
               >
                 {body}
-                <span className="pressable inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface px-3.5 text-[0.75rem] font-bold text-foreground group-hover:bg-foreground group-hover:text-white group-active:scale-95">
+                <span className="pressable inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface px-3.5 text-[0.75rem] font-bold text-foreground group-hover:bg-foreground group-hover:text-on-ink group-active:scale-95">
                   Open
                   <ArrowIcon />
                 </span>

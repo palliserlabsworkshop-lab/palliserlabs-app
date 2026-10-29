@@ -143,7 +143,7 @@ export function FloatingNav({ showReview = false, reviewCount = 0 }: { showRevie
               aria-current={isActive ? "true" : undefined}
               onClick={(e) => goTo(e, item.id)}
               className={`relative z-10 flex min-h-12 select-none flex-col items-center justify-center gap-0.5 rounded-full text-[0.68rem] font-bold transition-[color,opacity] duration-300 [-webkit-tap-highlight-color:transparent] active:opacity-60 ${
-                isActive ? "text-white" : "text-muted hover:text-foreground"
+                isActive ? "text-on-ink" : "text-muted hover:text-foreground"
               }`}
             >
               <span className="relative">
@@ -151,7 +151,7 @@ export function FloatingNav({ showReview = false, reviewCount = 0 }: { showRevie
                   {item.icon}
                 </svg>
                 {item.id === "review" && reviewCount > 0 && (
-                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 animate-pop items-center justify-center rounded-full bg-orange px-1 text-[0.6rem] font-extrabold text-foreground">
+                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 animate-pop items-center justify-center rounded-full bg-orange px-1 text-[0.6rem] font-extrabold text-[#111]">
                     {reviewCount}
                   </span>
                 )}

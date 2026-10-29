@@ -14,7 +14,7 @@ function CalendarIcon() {
 }
 
 const linkPill =
-  "pressable inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-[0.7rem] font-bold text-foreground hover:bg-foreground hover:text-white";
+  "pressable inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-[0.7rem] font-bold text-foreground hover:bg-foreground hover:text-on-ink";
 
 function TaskCard({ task }: { task: Task }) {
   const kind = statusKind(task.status, task.done);

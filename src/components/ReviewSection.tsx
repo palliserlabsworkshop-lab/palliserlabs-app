@@ -43,7 +43,7 @@ function Player({ link, taskId }: { link: string; taskId: string }) {
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${label} in Google Drive`}
-      className="pressable group relative block aspect-video overflow-hidden rounded-2xl bg-gradient-to-b from-[#f4f4f7] to-[#e9e9ee] ring-1 ring-inset ring-black/5"
+      className="pressable group relative block aspect-video overflow-hidden rounded-2xl bg-gradient-to-b from-surface to-[var(--brand-tile)] ring-1 ring-inset ring-line"
     >
       {info?.kind === "file" && (
         // eslint-disable-next-line @next/next/no-img-element -- served by our own thumbnail route
@@ -75,7 +75,7 @@ function Player({ link, taskId }: { link: string; taskId: string }) {
         </>
       ) : (
         <span className="absolute inset-0 flex flex-col items-center justify-center gap-3" aria-hidden>
-          <span className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-foreground text-white shadow-[0_8px_20px_-8px_rgb(17_17_17/0.45)] transition-transform duration-300 ease-[var(--ease-spring)] group-hover:scale-105">
+          <span className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-foreground text-on-ink shadow-[0_8px_20px_-8px_rgb(17_17_17/0.45)] transition-transform duration-300 ease-[var(--ease-spring)] group-hover:scale-105">
             {isFolder ? <FolderGlyph className="h-6 w-6" /> : <PlayGlyph className="h-[26px] w-[26px]" />}
           </span>
           <span className="text-center">
@@ -247,7 +247,7 @@ function ReviewCard({ task }: { task: Task }) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setTimeout(() => setDownloaded(true), 400)}
-            className={`pressable mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full text-[0.9rem] font-bold text-white ${
+            className={`pressable mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full text-[0.9rem] font-bold text-on-ink ${
               done ? "bg-success" : "bg-foreground hover:bg-primary-ink"
             }`}
           >
@@ -279,7 +279,7 @@ function ReviewCard({ task }: { task: Task }) {
         {flash ? (
           <div
             role="status"
-            className={`flex h-12 animate-pop items-center justify-center gap-2 rounded-full text-[0.9rem] font-bold text-white ${
+            className={`flex h-12 animate-pop items-center justify-center gap-2 rounded-full text-[0.9rem] font-bold text-on-ink ${
               flash === "approved" ? "bg-success" : "bg-accent-ink"
             }`}
           >
@@ -302,10 +302,10 @@ function ReviewCard({ task }: { task: Task }) {
               type="button"
               onClick={approve}
               disabled={pending}
-              className="pressable flex h-12 items-center justify-center gap-2 rounded-full bg-foreground text-[0.88rem] font-bold text-white hover:bg-success disabled:opacity-70"
+              className="pressable flex h-12 items-center justify-center gap-2 rounded-full bg-foreground text-[0.88rem] font-bold text-on-ink hover:bg-success disabled:opacity-70"
             >
               {pending ? (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-ink/30 border-t-on-ink" aria-hidden />
               ) : (
                 <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
                   <path d="M3.5 8.5l3 3 6-7" strokeLinecap="round" strokeLinejoin="round" />
@@ -328,7 +328,7 @@ function ReviewCard({ task }: { task: Task }) {
                       aria-pressed={on}
                       onClick={() => setAreas(on ? areas.filter((x) => x !== a) : [...areas, a])}
                       className={`pressable min-h-10 rounded-full border px-3.5 text-[0.78rem] font-bold ${
-                        on ? "border-foreground bg-foreground text-white" : "border-line bg-card hover:border-foreground/30"
+                        on ? "border-foreground bg-foreground text-on-ink" : "border-line bg-card hover:border-foreground/30"
                       }`}
                     >
                       {a}
@@ -377,10 +377,10 @@ function ReviewCard({ task }: { task: Task }) {
               <button
                 type="submit"
                 disabled={pending}
-                className="pressable flex h-12 items-center justify-center gap-2 rounded-full bg-foreground text-[0.88rem] font-bold text-white hover:bg-primary-ink disabled:opacity-70"
+                className="pressable flex h-12 items-center justify-center gap-2 rounded-full bg-foreground text-[0.88rem] font-bold text-on-ink hover:bg-primary-ink disabled:opacity-70"
               >
                 {pending && (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden />
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-ink/30 border-t-on-ink" aria-hidden />
                 )}
                 Send changes
               </button>
