@@ -13,6 +13,7 @@ import {
 } from "@notionhq/client";
 import { env, normalizeNotionId } from "./env";
 import {
+  REVIEW_STATUS,
   APPROVED_STATUS,
   ARCHIVE_AFTER_DOWNLOAD_DAYS,
   ARCHIVED_STATUS,
@@ -347,7 +348,10 @@ async function getOwnedTaskPage(clientId: string, taskId: string): Promise<PageO
 }
 
 /** Writes task properties by name, shaping each value to the column's actual type. Missing columns are skipped. */
-async function updateTask(pageId: string, values: { status?: string; dates?: Record<string, string>; numbers?: Record<string, number> }) {
+async function updateTask(
+  pageId: string,
+  values: { status?: string; dates?: Record<string, string>; numbers?: Record<string, number>; urls?: Record<string, string> },
+) {
   const ds = await dataSource(env.tasksDbId);
   const names = Object.keys(ds.schema);
   const properties: Record<string, unknown> = {};
@@ -359,6 +363,11 @@ async function updateTask(pageId: string, values: { status?: string; dates?: Rec
   for (const [wanted, date] of Object.entries(values.dates ?? {})) {
     const name = resolveName(names, wanted);
     if (ds.schema[name] === "date") properties[name] = { date: { start: date } };
+  }
+  for (const [wanted, url] of Object.entries(values.urls ?? {})) {
+    const name = resolveName(names, wanted);
+    if (ds.schema[name] === "url") properties[name] = { url };
+    if (ds.schema[name] === "rich_text") properties[name] = { rich_text: chunkText(url) };
   }
   for (const [wanted, num] of Object.entries(values.numbers ?? {})) {
     const name = resolveName(names, wanted);
@@ -441,6 +450,45 @@ export async function recordDownload(clientId: string, taskId: string): Promise<
   return link;
 }
 
+// ---------------------------------------------------------------------------
+// Drive sync support — used by the Final edits folder automation (src/lib/drive-sync.ts)
+// ---------------------------------------------------------------------------
+
+export type CodedTask = { id: string; title: string; statusKind: string; finalVideo: string | null; revisionRound: number | null };
+
+/** Finds the task whose Unique ID ("ID" column, e.g. PL-12) has this number. Null if the column doesn't exist. */
+export async function findTaskByCode(code: number): Promise<CodedTask | null> {
+  const ds = await dataSource(env.tasksDbId);
+  const name = resolveName(Object.keys(ds.schema), TASK_PROPS.code);
+  if (ds.schema[name] !== "unique_id") return null;
+  const [page] = await queryAll(ds, { property: name, unique_id: { equals: code } });
+  if (!page) return null;
+  const task = toTask(page);
+  return {
+    id: page.id,
+    title: task.title,
+    statusKind: statusKind(task.status, task.done),
+    finalVideo: task.finalVideo,
+    revisionRound: task.revisionRound,
+  };
+}
+
+/** Sets a task's Final Video and marks it Ready for review, with a note from the studio. */
+export async function deliverFinalVideo(task: CodedTask, link: string): Promise<void> {
+  await updateTask(task.id, {
+    status: REVIEW_STATUS,
+    urls: { [TASK_PROPS.finalVideo]: link },
+    ...(task.revisionRound ? {} : { numbers: { [TASK_PROPS.revisionRound]: 1 } }),
+  });
+  // Posted as the integration (not the client) so it reads as coming from the studio.
+  await notion()
+    .comments.create({
+      parent: { page_id: task.id },
+      rich_text: [{ type: "text", text: { content: `🎬 New cut delivered from Google Drive — ready for the client to review.` } }],
+    })
+    .catch((error) => console.error("Delivery note failed:", error));
+}
+
 /** The final video link for one of this client's tasks (no side effects). */
 export async function getFinalVideoLink(clientId: string, taskId: string): Promise<string | null> {
   const page = await getOwnedTaskPage(clientId, taskId);
@@ -465,25 +513,28 @@ export async function addTaskComment(client: ClientProfile, taskId: string, text
  * ARCHIVE_AFTER_DOWNLOAD_DAYS ago. Only rows that went through the review flow
  * (they have "Downloaded on") are touched; nothing else in Notion is changed.
  */
-export async function archiveDownloadedVideos(): Promise<number> {
+export async function archiveDownloadedVideos(): Promise<{ archived: number; links: string[] }> {
   const ds = await dataSource(env.tasksDbId);
   const name = resolveName(Object.keys(ds.schema), TASK_PROPS.downloadedOn);
-  if (ds.schema[name] !== "date") return 0;
+  if (ds.schema[name] !== "date") return { archived: 0, links: [] };
   const cutoff = new Date(Date.now() - ARCHIVE_AFTER_DOWNLOAD_DAYS * DAY_MS).toISOString().slice(0, 10);
   const pages = await queryAll(ds, { property: name, date: { before: cutoff } });
   let archived = 0;
+  const links: string[] = []; // final videos, so the Drive files can be filed into Archive too
   for (const page of pages) {
     const kind = statusKind(getText(page, TASK_PROPS.status));
     if (kind !== "done") continue;
     try {
       await updateTask(page.id, { status: ARCHIVED_STATUS });
       archived++;
+      const link = getText(page, TASK_PROPS.finalVideo);
+      if (link) links.push(link);
     } catch (error) {
       reviewError(error, ARCHIVED_STATUS);
       break; // most likely the option is missing — no point retrying every row
     }
   }
-  return archived;
+  return { archived, links };
 }
 
 // ---------------------------------------------------------------------------

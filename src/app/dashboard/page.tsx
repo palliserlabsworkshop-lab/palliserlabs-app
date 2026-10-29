@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { maybeSyncFinalEdits } from "@/lib/drive-sync";
 import { TaskBoard, TaskSummary } from "@/components/TaskBoard";
 import { FileList } from "@/components/FileList";
 import { Comments } from "@/components/Comments";
@@ -47,6 +49,10 @@ async function Dashboard() {
 
   const client = await getClient(clientId);
   if (!client) redirect("/login");
+
+  // Check the Drive "Final edits" folder in the background (at most once a minute);
+  // anything delivered shows up on the next auto-refresh.
+  after(() => maybeSyncFinalEdits());
 
   // Every query below is scoped server-side to the signed-in client's Notion page ID.
   const [tasks, files, comments] = await Promise.all([

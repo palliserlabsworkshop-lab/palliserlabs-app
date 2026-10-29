@@ -53,6 +53,12 @@ The app reads each database's schema at runtime, so property types are flexible:
   - Delivered videos are hidden 14 days after they're downloaded.
   - Older Done tasks with no final video are hidden 30 days after their due date.
   - A daily Vercel cron job (`/api/cron/archive`, see `vercel.json`) sets Status *Archived* in Notion, but only on videos whose `Downloaded on` is more than 14 days old. It never changes any other rows. It needs a `CRON_SECRET` environment variable.
+- **Google Drive "Final edits" folder (optional)**: drop a final edit (a file or a folder) into the shared Drive folder, with the task's code in its name, e.g. `PL-12 Spring launch.mp4`. The code comes from the `ID` column, a Unique ID with the prefix `PL`.
+  - The app sets `Final Video`, changes Status to *Ready for review*, makes the file viewable by anyone with the link, and moves it into `Final edits/Delivered`.
+  - Videos the client has already approved or that are archived are never reopened.
+  - When a video is archived, its file moves to `Final edits/Archive`.
+  - The check runs in the background whenever a client opens their dashboard (at most once a minute per server), and also daily. You can trigger it manually with `GET /api/cron/drive-sync` and `Authorization: Bearer <CRON_SECRET>`.
+  - It needs `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and `DRIVE_FINAL_EDITS_FOLDER_ID`. Without them it does nothing.
 - **Files** open through `/api/files/:id`. This route checks that the file belongs to the signed-in client, then redirects to a fresh link. Notion-hosted file links expire after about 1 hour.
 - **Messages** (the general chat) use the client's own row-page in the Clients DB as the thread.
   - Comments posted in the app appear in Notion under the client's name.
