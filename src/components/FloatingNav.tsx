@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const REVIEW_ITEM = {
   id: "review",
@@ -51,12 +51,43 @@ export function FloatingNav({ showReview = false, reviewCount = 0 }: { showRevie
   const ITEMS = showReview ? [REVIEW_ITEM, ...BASE_ITEMS] : BASE_ITEMS;
   const ids = ITEMS.map((i) => i.id).join(",");
   const [active, setActive] = useState(ITEMS[0].id);
+  // While a tap-triggered scroll is running, the section tracker stays quiet so the
+  // highlight goes straight to the tapped tab instead of flicking through every section it passes.
+  const tapLock = useRef(false);
+  const unlockTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  function goTo(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    e.preventDefault();
+    setActive(id);
+    tapLock.current = true;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    history.replaceState(null, "", `#${id}`);
+
+    // Unlock once scrolling has settled (or after a safety timeout).
+    const release = () => {
+      clearTimeout(unlockTimer.current);
+      unlockTimer.current = setTimeout(() => {
+        tapLock.current = false;
+        window.removeEventListener("scroll", release);
+      }, 160);
+    };
+    window.addEventListener("scroll", release, { passive: true });
+    release();
+    setTimeout(() => {
+      tapLock.current = false;
+      window.removeEventListener("scroll", release);
+    }, 1800);
+  }
 
   useEffect(() => {
     const visible = new Map<string, number>();
     const observer = new IntersectionObserver(
       (entries) => {
         for (const e of entries) visible.set(e.target.id, e.isIntersecting ? e.intersectionRatio : 0);
+        if (tapLock.current) return;
         // At the very bottom the last section may be short — treat it as active.
         if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
           return setActive(ids.split(",").at(-1)!);
@@ -86,7 +117,7 @@ export function FloatingNav({ showReview = false, reviewCount = 0 }: { showRevie
         {/* Sliding highlight behind the active item */}
         <span
           aria-hidden
-          className="absolute inset-y-1.5 left-1.5 rounded-full bg-foreground shadow-sm transition-transform duration-500 ease-[var(--ease-spring)]"
+          className="absolute inset-y-1.5 left-1.5 rounded-full bg-foreground shadow-sm transition-transform duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)]"
           style={{ width: `calc((100% - 0.75rem) / ${n})`, transform: `translateX(${index * 100}%)` }}
         />
         {ITEMS.map((item) => {
@@ -96,7 +127,7 @@ export function FloatingNav({ showReview = false, reviewCount = 0 }: { showRevie
               key={item.id}
               href={`#${item.id}`}
               aria-current={isActive ? "true" : undefined}
-              onClick={() => setActive(item.id)}
+              onClick={(e) => goTo(e, item.id)}
               className={`pressable relative z-10 flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-full text-[0.68rem] font-bold transition-colors duration-300 ${
                 isActive ? "text-white" : "text-muted hover:text-foreground"
               }`}
