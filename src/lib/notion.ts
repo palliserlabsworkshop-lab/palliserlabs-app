@@ -26,7 +26,7 @@ import {
   TWEAKS_STATUS,
 } from "./schema";
 import { statusKind } from "./status";
-import { briefRows, parseBrief, type Brief } from "./brief";
+import { briefRows, FORMAT_OPTIONS, labelsFor, parseBrief, PLATFORM_OPTIONS, type Brief } from "./brief";
 
 // ---------------------------------------------------------------------------
 // Client + data source resolution
@@ -534,45 +534,63 @@ function briefBlocks(brief: Brief) {
 export type ProjectResult = { id: string };
 
 /** Creates a Queued task for the client from a validated brief. */
+/** Icon given to tasks created from the portal. */
+const PROJECT_ICON = "🎬";
+
 export async function createProject(client: ClientProfile, brief: Brief): Promise<ProjectResult> {
   const ds = await dataSource(env.tasksDbId);
   const names = Object.keys(ds.schema);
+  const col = (wanted: string) => resolveName(names, wanted);
   const titleName = names.find((n) => ds.schema[n] === "title") ?? TASK_PROPS.title;
-  const statusName = resolveName(names, TASK_PROPS.status);
-  const linkName = resolveName(names, TASK_PROPS.videoLink);
-  const briefName = resolveName(names, TASK_PROPS.briefData);
-  const clientName = resolveName(names, TASK_PROPS.client);
-  const dueName = resolveName(names, TASK_PROPS.dueDate);
+  const statusName = col(TASK_PROPS.status);
+  const linkName = col(TASK_PROPS.videoLink);
+  const briefName = col(TASK_PROPS.briefData);
+  const clientName = col(TASK_PROPS.client);
+  const dueName = col(TASK_PROPS.dueDate);
+  const hooksName = col(TASK_PROPS.hooks);
+  const formatName = col(TASK_PROPS.format);
+  const platformName = col(TASK_PROPS.platform);
 
-  // Built loosely and only for properties that exist, so a missing column never blocks a submission.
-  const properties: Record<string, unknown> = {
+  // Essentials: always written. If anything optional is rejected, we retry with just these
+  // so a client's brief is never lost (the full brief is also in the page body).
+  const essentials: Record<string, unknown> = {
     [titleName]: { title: chunkText(brief.projectName) },
     [clientName]: { relation: [{ id: client.id }] },
   };
-  if (ds.schema[linkName] === "url") properties[linkName] = { url: brief.driveLinks[0] };
-  else if (ds.schema[linkName] === "rich_text") properties[linkName] = { rich_text: chunkText(brief.driveLinks.join("\n")) };
-  if (ds.schema[dueName] === "date" && brief.deadline) properties[dueName] = { date: { start: brief.deadline } };
-  if (ds.schema[briefName] === "rich_text") properties[briefName] = { rich_text: chunkText(JSON.stringify(brief)) };
+  if (ds.schema[briefName] === "rich_text") essentials[briefName] = { rich_text: chunkText(JSON.stringify(brief)) };
 
-  const withStatus = { ...properties };
-  if (ds.schema[statusName] === "status") withStatus[statusName] = { status: { name: NEW_PROJECT_STATUS } };
-  if (ds.schema[statusName] === "select") withStatus[statusName] = { select: { name: NEW_PROJECT_STATUS } };
+  // Optional columns: only written when they exist with the expected type.
+  const optional: Record<string, unknown> = {};
+  if (ds.schema[linkName] === "url") optional[linkName] = { url: brief.driveLinks[0] };
+  else if (ds.schema[linkName] === "rich_text") optional[linkName] = { rich_text: chunkText(brief.driveLinks.join("\n")) };
+  if (ds.schema[dueName] === "date" && brief.deadline) optional[dueName] = { date: { start: brief.deadline } };
+  if (ds.schema[hooksName] === "number" && brief.hookCount) optional[hooksName] = { number: brief.hookCount };
+  // Multi-select option names can't contain commas, so "Other" is written plainly (details are in the brief).
+  const options = (labels: string[]) => labels.map((name) => ({ name: name.replace(/,/g, " ").slice(0, 100) }));
+  if (ds.schema[formatName] === "multi_select") {
+    optional[formatName] = { multi_select: options(labelsFor(brief.format, FORMAT_OPTIONS)) };
+  }
+  if (ds.schema[platformName] === "multi_select") {
+    optional[platformName] = { multi_select: options(labelsFor(brief.platform, PLATFORM_OPTIONS)) };
+  }
+  if (ds.schema[statusName] === "status") optional[statusName] = { status: { name: NEW_PROJECT_STATUS } };
+  if (ds.schema[statusName] === "select") optional[statusName] = { select: { name: NEW_PROJECT_STATUS } };
 
   const create = (props: Record<string, unknown>) =>
     notion().pages.create({
       parent: { data_source_id: ds.id },
+      icon: { type: "emoji", emoji: PROJECT_ICON },
       properties: props as Parameters<Client["pages"]["create"]>[0]["properties"],
       children: briefBlocks(brief) as Parameters<Client["pages"]["create"]>[0]["children"],
     });
 
   try {
-    const page = await create(withStatus);
+    const page = await create({ ...essentials, ...optional });
     return { id: page.id };
   } catch (error) {
-    // If "Queued" isn't a Status option in Notion, still save the project rather than lose it.
     if (!isNotionClientError(error) || error.code !== APIErrorCode.ValidationError) throw error;
-    console.error(`Could not set Status to "${NEW_PROJECT_STATUS}" — check the option exists in Notion.`, error);
-    const page = await create(properties);
+    console.error("Notion rejected an optional column — saving the project with essentials only.", error);
+    const page = await create(essentials);
     return { id: page.id };
   }
 }

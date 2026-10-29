@@ -21,6 +21,10 @@ export const TASK_PROPS = {
   revisionRound: "Revision round", // Number — 1 for the first cut, +1 per round of changes
   approvedOn: "Approved on", // Date — set when the client approves
   downloadedOn: "Downloaded on", // Date — set the first time the client clicks Download
+  hooks: "Hooks", // Number — hook variants requested (for billing)
+  format: "Format", // Multi-select — brief formats, as display labels
+  platform: "Platform", // Multi-select — target platforms, as display labels
+  code: "ID", // Unique ID (prefix PL) — e.g. PL-12, used to match Drive uploads to tasks
 } as const;
 
 /**
