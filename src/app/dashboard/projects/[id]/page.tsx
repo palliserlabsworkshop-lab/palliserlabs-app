@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getProject } from "@/lib/notion";
-import { getSessionClientId } from "@/lib/session";
+import { getViewer } from "@/lib/viewer";
 import { briefRows, isHttpUrl } from "@/lib/brief";
 import { formatDueDate } from "@/lib/format";
 import { StatusChip } from "@/components/StatusChip";
@@ -11,12 +11,12 @@ import { StatusChip } from "@/components/StatusChip";
 export const metadata: Metadata = { title: "Project brief — Palliser Labs" };
 
 async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
-  const clientId = await getSessionClientId();
-  if (!clientId) redirect("/login");
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
 
   const { id } = await params;
   // Only finds the task if its Client relation is the signed-in client.
-  const project = await getProject(clientId, id);
+  const project = await getProject(viewer.brandIds, id);
   if (!project) notFound();
 
   return (

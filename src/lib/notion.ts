@@ -13,6 +13,7 @@ import {
 } from "@notionhq/client";
 import { env, normalizeNotionId } from "./env";
 import {
+  PERSON_PROPS,
   REVIEW_STATUS,
   APPROVED_STATUS,
   ARCHIVE_AFTER_DOWNLOAD_DAYS,
@@ -27,6 +28,7 @@ import {
   TWEAKS_STATUS,
 } from "./schema";
 import { statusKind } from "./status";
+import { ownBrandOf } from "./scope";
 import { briefRows, FORMAT_OPTIONS, labelsFor, parseBrief, PLATFORM_OPTIONS, type Brief } from "./brief";
 
 // ---------------------------------------------------------------------------
@@ -191,9 +193,30 @@ function equalsFilter(schema: Schema, wanted: string, value: string): Filter | n
   }
 }
 
-/** Every task/file query goes through this — the client isolation guarantee. */
-function belongsToClient(property: string, clientId: string): Filter {
-  return { property, relation: { contains: clientId } };
+/**
+ * Every task/file query goes through this — the isolation guarantee. Matches rows linked to
+ * any of the viewer's brands. Returns null for an empty list, and callers then return nothing
+ * (an empty list must never mean "no filter").
+ */
+function belongsToAny(property: string, brandIds: string[]): Filter | null {
+  if (!brandIds.length) return null;
+  const one = (id: string) => ({ property, relation: { contains: id } });
+  return brandIds.length === 1 ? one(brandIds[0]) : ({ or: brandIds.map(one) } as Filter);
+}
+
+/** The Tasks/Files column linking to a brand — "Client" or (if renamed) "Brand". */
+function brandColumn(schema: Schema, wanted: string): string {
+  const names = Object.keys(schema);
+  for (const candidate of [wanted, "Brand", "Brands", "Clients"]) {
+    const name = resolveName(names, candidate);
+    if (schema[name] === "relation") return name;
+  }
+  return resolveName(names, wanted);
+}
+
+function relationIds(page: PageObjectResponse, name: string): string[] {
+  const prop = page.properties[name];
+  return prop?.type === "relation" ? prop.relation.map((r) => r.id) : [];
 }
 
 // ---------------------------------------------------------------------------
@@ -227,53 +250,95 @@ function isBlocked(page: PageObjectResponse): boolean {
  * The password comparison happens here on the server; it is never sent to the browser.
  */
 export async function authenticateClient(email: string, password: string): Promise<ClientProfile | null> {
-  const ds = await dataSource(env.clientsDbId);
-  const wanted = email.trim().toLowerCase();
+  const page = await matchLogin(env.clientsDbId, CLIENT_PROPS, email, password);
+  return page ? toProfile(page) : null;
+}
 
+/**
+ * Who is acting: a person (People DB) or a legacy client login (Clients DB row).
+ * `brandIds` always comes from Notion on the server.
+ */
+export type Actor = { kind: "person" | "client"; id: string; name: string; email: string; brandIds: string[] };
+
+/** Finds the row in a database whose Email + 4-digit App Password match. Timing-safe. */
+async function matchLogin(
+  databaseId: string,
+  props: { email: string; appPassword: string },
+  email: string,
+  password: string,
+): Promise<PageObjectResponse | null> {
+  const ds = await dataSource(databaseId);
+  const wanted = email.trim().toLowerCase();
   let candidates: PageObjectResponse[] = [];
   for (const value of new Set([email.trim(), wanted])) {
-    const filter = equalsFilter(ds.schema, CLIENT_PROPS.email, value);
+    const filter = equalsFilter(ds.schema, props.email, value);
     if (!filter) break;
     candidates = await queryAll(ds, filter);
     if (candidates.length) break;
   }
-  // Notion's "equals" may be case-sensitive (Jane@Co.com vs jane@co.com), and some property
-  // types (e.g. formula) can't be filtered on — fall back to matching in code. This only
-  // runs on the failure path, which is already throttled.
   if (!candidates.length) candidates = await queryAll(ds);
-
   for (const page of candidates) {
-    if (getText(page, CLIENT_PROPS.email).toLowerCase() !== wanted) continue;
-    let stored = getText(page, CLIENT_PROPS.appPassword).replace(/\s/g, "");
-    // A Number property drops leading zeros (0042 -> 42), so pad back to 4 digits.
+    if (getText(page, props.email).toLowerCase() !== wanted) continue;
+    let stored = getText(page, props.appPassword).replace(/\s/g, "");
     if (/^\d{1,3}$/.test(stored)) stored = stored.padStart(4, "0");
     if (!/^\d{4}$/.test(stored)) continue;
-    if (safeEqual(stored, password) && !isBlocked(page)) return toProfile(page);
+    if (safeEqual(stored, password) && !isBlocked(page)) return page;
   }
   return null;
 }
 
-/** Loads a client by page ID, verifying the page really is a row in the Clients DB. */
-export async function getClient(clientId: string): Promise<ClientProfile | null> {
+export type PersonProfile = { id: string; name: string; email: string; brandIds: string[] };
+
+function toPerson(page: PageObjectResponse, schema: Schema): PersonProfile {
+  return {
+    id: page.id,
+    name: getText(page, PERSON_PROPS.name, true),
+    email: getText(page, PERSON_PROPS.email),
+    brandIds: relationIds(page, brandColumn(schema, PERSON_PROPS.brands)),
+  };
+}
+
+/** People login (only when PEOPLE_DB_ID is set). */
+export async function authenticatePerson(email: string, password: string): Promise<PersonProfile | null> {
+  const dbId = env.peopleDbId;
+  if (!dbId) return null;
+  const page = await matchLogin(dbId, PERSON_PROPS, email, password);
+  return page ? toPerson(page, (await dataSource(dbId)).schema) : null;
+}
+
+/** Loads a person by page ID, verifying it's a row in the People DB and not blocked. */
+export async function getPerson(personId: string): Promise<PersonProfile | null> {
+  const dbId = env.peopleDbId;
+  if (!dbId) return null;
+  const page = await loadRowOf(dbId, personId);
+  return page ? toPerson(page, (await dataSource(dbId)).schema) : null;
+}
+
+/** Retrieves a page and checks it belongs to the given database (and isn't trashed or blocked). */
+async function loadRowOf(databaseId: string, pageId: string): Promise<PageObjectResponse | null> {
   try {
-    const [ds, page] = await Promise.all([
-      dataSource(env.clientsDbId),
-      notion().pages.retrieve({ page_id: clientId }),
-    ]);
+    const [ds, page] = await Promise.all([dataSource(databaseId), notion().pages.retrieve({ page_id: pageId })]);
     if (!isFullPage(page) || page.in_trash) return null;
     const parent = page.parent;
     const parentId =
       parent.type === "data_source_id" ? parent.data_source_id : parent.type === "database_id" ? parent.database_id : "";
     const ok =
       normalizeNotionId(parentId) === normalizeNotionId(ds.id) ||
-      (parent.type === "data_source_id" && normalizeNotionId(parent.database_id) === env.clientsDbId) ||
-      normalizeNotionId(parentId) === env.clientsDbId;
-    if (!ok || isBlocked(page)) return null;
-    return toProfile(page);
+      (parent.type === "data_source_id" && normalizeNotionId(parent.database_id) === databaseId) ||
+      normalizeNotionId(parentId) === databaseId;
+    return ok && !isBlocked(page) ? page : null;
   } catch (error) {
-    if (isNotionClientError(error) && error.code === APIErrorCode.ObjectNotFound) return null;
+    if (isNotionClientError(error) && (error.code === APIErrorCode.ObjectNotFound || error.code === APIErrorCode.ValidationError)) {
+      return null;
+    }
     throw error;
   }
+}
+
+/** Loads a client by page ID, verifying the page really is a row in the Clients DB. */
+export async function getClient(clientId: string): Promise<ClientProfile | null> {
+  const page = await loadRowOf(env.clientsDbId, clientId);
+  return page ? toProfile(page) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,12 +358,14 @@ export type Task = {
   downloadedOn: string | null;
   /** Finished long enough ago to leave the main dashboard (shown under "Archive"). */
   archived: boolean;
+  /** Which of the viewer's brands this task belongs to (null outside a viewer context). */
+  brandId: string | null;
 };
 
 const DAY_MS = 86_400_000;
 const daysSince = (iso: string | null) => (iso ? (Date.now() - Date.parse(iso)) / DAY_MS : 0);
 
-function toTask(page: PageObjectResponse): Task {
+function toTask(page: PageObjectResponse, viewerBrandIds: string[] = [], brandCol = ""): Task {
   const status = getText(page, TASK_PROPS.status) || NEW_PROJECT_STATUS;
   const kind = statusKind(status);
   const done = DONE_STATUSES.includes(status.toLowerCase());
@@ -325,24 +392,28 @@ function toTask(page: PageObjectResponse): Task {
     approvedOn: getDate(page, TASK_PROPS.approvedOn),
     downloadedOn,
     archived,
+    brandId: brandCol ? ownBrandOf(relationIds(page, brandCol), viewerBrandIds) : null,
   };
 }
 
-export async function getTasks(clientId: string): Promise<Task[]> {
+export async function getTasks(brandIds: string[]): Promise<Task[]> {
   const ds = await dataSource(env.tasksDbId);
+  const col = brandColumn(ds.schema, TASK_PROPS.client);
+  const filter = belongsToAny(col, brandIds);
+  if (!filter) return [];
   const dueDate = resolveName(Object.keys(ds.schema), TASK_PROPS.dueDate);
-  const sorts: Sorts = ds.schema[dueDate]
-    ? [{ property: dueDate, direction: "ascending" }]
-    : undefined;
-  const pages = await queryAll(ds, belongsToClient(resolveName(Object.keys(ds.schema), TASK_PROPS.client), clientId), sorts);
-  return pages.map(toTask);
+  const sorts: Sorts = ds.schema[dueDate] ? [{ property: dueDate, direction: "ascending" }] : undefined;
+  const pages = await queryAll(ds, filter, sorts);
+  return pages.map((page) => toTask(page, brandIds, col));
 }
 
-/** Loads one task page — only if its Client relation is this client. The ownership gate for every task action. */
-async function getOwnedTaskPage(clientId: string, taskId: string): Promise<PageObjectResponse | null> {
+/** Loads one task page — only if it's linked to one of the viewer's brands. The ownership gate for every task action. */
+async function getOwnedTaskPage(brandIds: string[], taskId: string): Promise<PageObjectResponse | null> {
   if (!/^[0-9a-f-]{32,36}$/i.test(taskId)) return null;
   const ds = await dataSource(env.tasksDbId);
-  const pages = await queryAll(ds, belongsToClient(resolveName(Object.keys(ds.schema), TASK_PROPS.client), clientId));
+  const filter = belongsToAny(brandColumn(ds.schema, TASK_PROPS.client), brandIds);
+  if (!filter) return null;
+  const pages = await queryAll(ds, filter);
   const target = normalizeNotionId(taskId);
   return pages.find((p) => normalizeNotionId(p.id) === target) ?? null;
 }
@@ -395,8 +466,8 @@ function reviewError(error: unknown, statusName: string): ReviewResult {
 }
 
 /** Client approves the cut. Only allowed while the task is Ready for review. */
-export async function approveVideo(client: ClientProfile, taskId: string): Promise<ReviewResult> {
-  const page = await getOwnedTaskPage(client.id, taskId);
+export async function approveVideo(actor: Actor, taskId: string): Promise<ReviewResult> {
+  const page = await getOwnedTaskPage(actor.brandIds, taskId);
   if (!page) return { ok: false, error: "We couldn’t find that video." };
   if (statusKind(getText(page, TASK_PROPS.status)) !== "review") {
     return { ok: false, error: "This video isn’t waiting for review any more." };
@@ -406,15 +477,15 @@ export async function approveVideo(client: ClientProfile, taskId: string): Promi
   } catch (error) {
     return reviewError(error, APPROVED_STATUS);
   }
-  await addComment(client, "✅ Approved — thank you!", page.id).catch(() => {});
+  await addComment(actor.name, "✅ Approved — thank you!", page.id).catch(() => {});
   return { ok: true };
 }
 
 export type TweakRequest = { areas: string[]; details: string; timestamp: string };
 
 /** Client asks for changes. Moves the task to Tweaks requested and bumps the revision round. */
-export async function requestTweaks(client: ClientProfile, taskId: string, req: TweakRequest): Promise<ReviewResult> {
-  const page = await getOwnedTaskPage(client.id, taskId);
+export async function requestTweaks(actor: Actor, taskId: string, req: TweakRequest): Promise<ReviewResult> {
+  const page = await getOwnedTaskPage(actor.brandIds, taskId);
   if (!page) return { ok: false, error: "We couldn’t find that video." };
   if (statusKind(getText(page, TASK_PROPS.status)) !== "review") {
     return { ok: false, error: "This video isn’t waiting for review any more." };
@@ -432,13 +503,13 @@ export async function requestTweaks(client: ClientProfile, taskId: string, req: 
     req.details,
   ].filter(Boolean);
   // The request is posted as a comment on the task page, so the editor sees it (and gets notified) in Notion.
-  await addComment(client, lines.join("\n"), page.id).catch((error) => console.error("Tweak comment failed:", error));
+  await addComment(actor.name, lines.join("\n"), page.id).catch((error) => console.error("Tweak comment failed:", error));
   return { ok: true };
 }
 
 /** Returns the final video link and records the first download click. */
-export async function recordDownload(clientId: string, taskId: string): Promise<string | null> {
-  const page = await getOwnedTaskPage(clientId, taskId);
+export async function recordDownload(brandIds: string[], taskId: string): Promise<string | null> {
+  const page = await getOwnedTaskPage(brandIds, taskId);
   if (!page) return null;
   const link = getText(page, TASK_PROPS.finalVideo);
   if (!link) return null;
@@ -490,21 +561,21 @@ export async function deliverFinalVideo(task: CodedTask, link: string): Promise<
 }
 
 /** The final video link for one of this client's tasks (no side effects). */
-export async function getFinalVideoLink(clientId: string, taskId: string): Promise<string | null> {
-  const page = await getOwnedTaskPage(clientId, taskId);
+export async function getFinalVideoLink(brandIds: string[], taskId: string): Promise<string | null> {
+  const page = await getOwnedTaskPage(brandIds, taskId);
   return page ? getText(page, TASK_PROPS.finalVideo) || null : null;
 }
 
 /** Per-video feedback thread: comments on the task's own Notion page. */
-export async function getTaskComments(clientId: string, taskId: string): Promise<PortalComment[] | null> {
-  const page = await getOwnedTaskPage(clientId, taskId);
-  return page ? getComments(page.id) : null;
+export async function getTaskComments(actor: Actor, taskId: string): Promise<PortalComment[] | null> {
+  const page = await getOwnedTaskPage(actor.brandIds, taskId);
+  return page ? getComments(page.id, actor.name) : null;
 }
 
-export async function addTaskComment(client: ClientProfile, taskId: string, text: string): Promise<boolean> {
-  const page = await getOwnedTaskPage(client.id, taskId);
+export async function addTaskComment(actor: Actor, taskId: string, text: string): Promise<boolean> {
+  const page = await getOwnedTaskPage(actor.brandIds, taskId);
   if (!page) return false;
-  await addComment(client, text, page.id);
+  await addComment(actor.name, text, page.id);
   return true;
 }
 
@@ -588,7 +659,7 @@ export type ProjectResult = { id: string };
 /** Icon given to tasks created from the portal. */
 const PROJECT_ICON = "🎬";
 
-export async function createProject(client: ClientProfile, brief: Brief): Promise<ProjectResult> {
+export async function createProject(actor: Actor, brandId: string, brief: Brief): Promise<ProjectResult> {
   const ds = await dataSource(env.tasksDbId);
   const names = Object.keys(ds.schema);
   const col = (wanted: string) => resolveName(names, wanted);
@@ -596,7 +667,8 @@ export async function createProject(client: ClientProfile, brief: Brief): Promis
   const statusName = col(TASK_PROPS.status);
   const linkName = col(TASK_PROPS.videoLink);
   const briefName = col(TASK_PROPS.briefData);
-  const clientName = col(TASK_PROPS.client);
+  const clientName = brandColumn(ds.schema, TASK_PROPS.client);
+  const requestedByName = col(TASK_PROPS.requestedBy);
   const dueName = col(TASK_PROPS.dueDate);
   const hooksName = col(TASK_PROPS.hooks);
   const formatName = col(TASK_PROPS.format);
@@ -606,7 +678,7 @@ export async function createProject(client: ClientProfile, brief: Brief): Promis
   // so a client's brief is never lost (the full brief is also in the page body).
   const essentials: Record<string, unknown> = {
     [titleName]: { title: chunkText(brief.projectName) },
-    [clientName]: { relation: [{ id: client.id }] },
+    [clientName]: { relation: [{ id: brandId }] },
   };
   if (ds.schema[briefName] === "rich_text") essentials[briefName] = { rich_text: chunkText(JSON.stringify(brief)) };
 
@@ -623,6 +695,12 @@ export async function createProject(client: ClientProfile, brief: Brief): Promis
   }
   if (ds.schema[platformName] === "multi_select") {
     optional[platformName] = { multi_select: options(labelsFor(brief.platform, PLATFORM_OPTIONS)) };
+  }
+  // Who asked for it — a link to their People row, or just their name.
+  if (ds.schema[requestedByName] === "relation" && actor.kind === "person") {
+    optional[requestedByName] = { relation: [{ id: actor.id }] };
+  } else if (ds.schema[requestedByName] === "rich_text" && actor.name) {
+    optional[requestedByName] = { rich_text: chunkText(actor.name) };
   }
   if (ds.schema[statusName] === "status") optional[statusName] = { status: { name: NEW_PROJECT_STATUS } };
   if (ds.schema[statusName] === "select") optional[statusName] = { select: { name: NEW_PROJECT_STATUS } };
@@ -649,8 +727,8 @@ export async function createProject(client: ClientProfile, brief: Brief): Promis
 export type Project = Task & { brief: Brief | null };
 
 /** Loads one task for the client (only found if its Client relation is this client). */
-export async function getProject(clientId: string, taskId: string): Promise<Project | null> {
-  const page = await getOwnedTaskPage(clientId, taskId);
+export async function getProject(brandIds: string[], taskId: string): Promise<Project | null> {
+  const page = await getOwnedTaskPage(brandIds, taskId);
   if (!page) return null;
   const briefJson = getText(page, TASK_PROPS.briefData);
   return { ...toTask(page), brief: briefJson ? parseBrief(briefJson) : null };
@@ -660,33 +738,34 @@ export async function getProject(clientId: string, taskId: string): Promise<Proj
 // Files
 // ---------------------------------------------------------------------------
 
-export type ClientFile = { id: string; name: string; type: string; hasLink: boolean };
+export type ClientFile = { id: string; name: string; type: string; hasLink: boolean; brandId: string | null };
 
-async function queryClientFiles(clientId: string) {
+async function queryBrandFiles(brandIds: string[]): Promise<{ pages: PageObjectResponse[]; col: string }> {
   const ds = await dataSource(env.filesDbId);
-  return queryAll(ds, belongsToClient(resolveName(Object.keys(ds.schema), FILE_PROPS.client), clientId), [
-    { timestamp: "created_time", direction: "descending" },
-  ]);
+  const col = brandColumn(ds.schema, FILE_PROPS.client);
+  const filter = belongsToAny(col, brandIds);
+  if (!filter) return { pages: [], col };
+  return { pages: await queryAll(ds, filter, [{ timestamp: "created_time", direction: "descending" }]), col };
 }
 
-export async function getFiles(clientId: string): Promise<ClientFile[]> {
-  const pages = await queryClientFiles(clientId);
+export async function getFiles(brandIds: string[]): Promise<ClientFile[]> {
+  const { pages, col } = await queryBrandFiles(brandIds);
   return pages.map((page) => ({
     id: page.id,
     name: getText(page, FILE_PROPS.name, true) || "Untitled file",
     type: getText(page, FILE_PROPS.type),
     hasLink: Boolean(readFileLink(page, FILE_PROPS.file)),
+    brandId: ownBrandOf(relationIds(page, col), brandIds),
   }));
 }
 
 /**
- * Returns a fresh link for one of this client's files. Notion-hosted file URLs
- * expire after ~1 hour, so they are resolved on click rather than embedded in the page.
- * Looking the file up through the client-filtered query means another client's
- * file ID simply isn't found.
+ * Returns a fresh link for one of the viewer's files. Notion-hosted file URLs expire after
+ * ~1 hour, so they are resolved on click. Looking the file up through the brand-filtered
+ * query means anyone else's file ID simply isn't found.
  */
-export async function getClientFileLink(clientId: string, fileId: string): Promise<string | null> {
-  const pages = await queryClientFiles(clientId);
+export async function getClientFileLink(brandIds: string[], fileId: string): Promise<string | null> {
+  const { pages } = await queryBrandFiles(brandIds);
   const target = normalizeNotionId(fileId);
   const page = pages.find((p) => normalizeNotionId(p.id) === target);
   return page ? readFileLink(page, FILE_PROPS.file) : null;
@@ -716,8 +795,12 @@ function botUserId(): Promise<string> {
   return botIdPromise;
 }
 
-/** Open comments on a page. Callers must already have checked the page belongs to the signed-in client. */
-export async function getComments(pageId: string): Promise<PortalComment[]> {
+/**
+ * Open comments on a page. Callers must already have checked the viewer may see this page.
+ * Portal posts are authored by the integration with the poster's name, so on shared brands
+ * a post is "You" only if it carries the viewer's own name — a partner's shows their name.
+ */
+export async function getComments(pageId: string, viewerName: string): Promise<PortalComment[]> {
   const [botId, comments] = await Promise.all([
     botUserId(),
     collectPaginatedAPI(notion().comments.list, { block_id: pageId }),
@@ -725,14 +808,15 @@ export async function getComments(pageId: string): Promise<PortalComment[]> {
   return comments
     .filter(isFullComment)
     .map((c) => {
-      // Comments posted from the portal are authored by the integration (bot user).
-      const fromClient = c.created_by.id === botId;
+      const viaPortal = c.created_by.id === botId && c.display_name?.type === "custom";
+      const name = c.display_name?.resolved_name ?? "";
+      const mine = viaPortal && (!name || name.trim().toLowerCase() === viewerName.trim().toLowerCase());
       return {
         id: c.id,
         text: richText(c.rich_text),
         createdAt: c.created_time,
-        author: fromClient ? "You" : c.display_name?.resolved_name || "Palliser Labs",
-        fromClient,
+        author: mine ? "You" : name || "Palliser Labs",
+        fromClient: mine,
       };
     })
     .filter((c) => c.text.trim().length > 0)
@@ -741,8 +825,8 @@ export async function getComments(pageId: string): Promise<PortalComment[]> {
 
 export const MAX_COMMENT_LENGTH = 2000; // Notion's per-text-object limit
 
-/** Posts a comment as the client. Defaults to the client's own row-page (Messages). */
-export async function addComment(client: ClientProfile, text: string, pageId = client.id): Promise<void> {
+/** Posts a comment on a page under the poster's name. */
+export async function addComment(authorName: string, text: string, pageId: string): Promise<void> {
   const base = {
     parent: { page_id: pageId },
     rich_text: [{ type: "text" as const, text: { content: text.slice(0, MAX_COMMENT_LENGTH) } }],
@@ -751,7 +835,7 @@ export async function addComment(client: ClientProfile, text: string, pageId = c
     // Shows the client's name as the author in Notion instead of the integration's.
     await notion().comments.create({
       ...base,
-      display_name: { type: "custom", custom: { name: client.name || client.email || "Client" } },
+      display_name: { type: "custom", custom: { name: authorName || "Client" } },
     });
   } catch (error) {
     // If the workspace rejects a custom author name, still deliver the comment.

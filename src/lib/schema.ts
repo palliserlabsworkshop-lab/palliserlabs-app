@@ -25,6 +25,16 @@ export const TASK_PROPS = {
   format: "Format", // Multi-select — brief formats, as display labels
   platform: "Platform", // Multi-select — target platforms, as display labels
   code: "ID", // Unique ID (prefix PL) — e.g. PL-12, used to match Drive uploads to tasks
+  requestedBy: "Requested by", // Relation to People (or Text) — who submitted it from the portal
+} as const;
+
+/** People database (optional, PEOPLE_DB_ID) — logins that can see several brands. */
+export const PERSON_PROPS = {
+  name: "Name",
+  email: "Email",
+  appPassword: "App Password",
+  status: "Status",
+  brands: "Brands", // Relation to the Clients/Brands database
 } as const;
 
 /**

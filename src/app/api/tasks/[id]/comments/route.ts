@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { addTaskComment, getClient, getTaskComments, MAX_COMMENT_LENGTH } from "@/lib/notion";
-import { getSessionClientId } from "@/lib/session";
+import { addTaskComment, getTaskComments, MAX_COMMENT_LENGTH } from "@/lib/notion";
+import { getViewer } from "@/lib/viewer";
 
 const noStore = { "Cache-Control": "no-store" };
 
-/** Feedback thread for one video — comments on that task's Notion page, only for its own client. */
+/** Feedback thread for one video — comments on that task's Notion page, only for viewers linked to its brand. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const clientId = await getSessionClientId();
-  if (!clientId) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
+  const viewer = await getViewer();
+  if (!viewer) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
   const { id } = await params;
   try {
-    const comments = await getTaskComments(clientId, id);
+    const comments = await getTaskComments(viewer, id);
     if (!comments) return NextResponse.json({ error: "Not found" }, { status: 404, headers: noStore });
     return NextResponse.json({ comments }, { headers: noStore });
   } catch (error) {
@@ -20,9 +20,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const clientId = await getSessionClientId();
-  const client = clientId ? await getClient(clientId) : null;
-  if (!client) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
+  const viewer = await getViewer();
+  if (!viewer) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
   const { id } = await params;
 
   const body = await request.json().catch(() => null);
@@ -33,10 +32,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    if (!(await addTaskComment(client, id, text))) {
+    if (!(await addTaskComment(viewer, id, text))) {
       return NextResponse.json({ error: "Not found" }, { status: 404, headers: noStore });
     }
-    return NextResponse.json({ comments: (await getTaskComments(client.id, id)) ?? [] }, { headers: noStore });
+    return NextResponse.json({ comments: (await getTaskComments(viewer, id)) ?? [] }, { headers: noStore });
   } catch (error) {
     console.error("Failed to post task comment:", error);
     return NextResponse.json({ error: "Could not post comment" }, { status: 502, headers: noStore });

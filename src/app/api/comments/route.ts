@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
-import { addComment, getClient, getComments, MAX_COMMENT_LENGTH } from "@/lib/notion";
-import { getSessionClientId } from "@/lib/session";
+import { addComment, getComments, MAX_COMMENT_LENGTH } from "@/lib/notion";
+import { getViewer } from "@/lib/viewer";
 
 const noStore = { "Cache-Control": "no-store" };
 
-async function currentClient() {
-  const clientId = await getSessionClientId();
-  return clientId ? getClient(clientId) : null;
-}
-
+/** The viewer's Messages thread: their People row (or, for older client logins, their client row). */
 export async function GET() {
-  const client = await currentClient();
-  if (!client) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
+  const viewer = await getViewer();
+  if (!viewer) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
   try {
-    return NextResponse.json({ comments: await getComments(client.id) }, { headers: noStore });
+    return NextResponse.json({ comments: await getComments(viewer.messagesPageId, viewer.name) }, { headers: noStore });
   } catch (error) {
     console.error("Failed to load comments:", error);
     return NextResponse.json({ error: "Could not load comments" }, { status: 502, headers: noStore });
@@ -21,8 +17,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const client = await currentClient();
-  if (!client) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
+  const viewer = await getViewer();
+  if (!viewer) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
 
   const body = await request.json().catch(() => null);
   const text = typeof body?.text === "string" ? body.text.trim() : "";
@@ -32,8 +28,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    await addComment(client, text);
-    return NextResponse.json({ comments: await getComments(client.id) }, { headers: noStore });
+    await addComment(viewer.name, text, viewer.messagesPageId);
+    return NextResponse.json({ comments: await getComments(viewer.messagesPageId, viewer.name) }, { headers: noStore });
   } catch (error) {
     console.error("Failed to post comment:", error);
     return NextResponse.json({ error: "Could not post comment" }, { status: 502, headers: noStore });

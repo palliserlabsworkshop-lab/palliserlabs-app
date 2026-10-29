@@ -11,8 +11,8 @@ import { ProjectForm } from "@/components/ProjectForm";
 import { FloatingNav } from "@/components/FloatingNav";
 import { ReviewSection } from "@/components/ReviewSection";
 import { reviewStage } from "@/lib/review";
-import { getClient, getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
-import { getSessionClientId } from "@/lib/session";
+import { getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
+import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Dashboard — Palliser Labs" };
 
@@ -44,21 +44,19 @@ function Section({
 }
 
 async function Dashboard() {
-  const clientId = await getSessionClientId();
-  if (!clientId) redirect("/login");
-
-  const client = await getClient(clientId);
-  if (!client) redirect("/login");
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  const client = viewer.brands[0] ?? { id: viewer.id, name: viewer.name, company: "", email: viewer.email };
 
   // Check the Drive "Final edits" folder in the background (at most once a minute);
   // anything delivered shows up on the next auto-refresh.
   after(() => maybeSyncFinalEdits());
 
-  // Every query below is scoped server-side to the signed-in client's Notion page ID.
+  // Every query below is scoped server-side to the viewer's brands, as loaded from Notion.
   const [tasks, files, comments] = await Promise.all([
-    getTasks(client.id),
-    getFiles(client.id),
-    getComments(client.id).catch((error): PortalComment[] | null => {
+    getTasks(viewer.brandIds),
+    getFiles(viewer.brandIds),
+    getComments(viewer.messagesPageId, viewer.name).catch((error): PortalComment[] | null => {
       console.error("Failed to load comments:", error);
       return null;
     }),

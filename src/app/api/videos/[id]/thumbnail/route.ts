@@ -1,5 +1,5 @@
 import { getFinalVideoLink } from "@/lib/notion";
-import { getSessionClientId } from "@/lib/session";
+import { getViewer } from "@/lib/viewer";
 import { driveInfo } from "@/lib/review";
 
 /**
@@ -10,11 +10,11 @@ import { driveInfo } from "@/lib/review";
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const notFound = () => new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
-  const clientId = await getSessionClientId();
-  if (!clientId) return new Response(null, { status: 401 });
+  const viewer = await getViewer();
+  if (!viewer) return new Response(null, { status: 401 });
 
   const { id } = await params;
-  const link = await getFinalVideoLink(clientId, id).catch(() => null);
+  const link = await getFinalVideoLink(viewer.brandIds, id).catch(() => null);
   const info = link ? driveInfo(link) : null;
   if (!info?.thumbnail) return notFound();
 
