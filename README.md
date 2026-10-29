@@ -59,6 +59,13 @@ The app reads each database's schema at runtime, so property types are flexible:
   - When a video is archived, its file moves to `Final edits/Archive`.
   - The check runs in the background whenever a client opens their dashboard (at most once a minute per server), and also daily. You can trigger it manually with `GET /api/cron/drive-sync` and `Authorization: Bearer <CRON_SECRET>`.
   - It needs `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and `DRIVE_FINAL_EDITS_FOLDER_ID`. Without them it does nothing.
+- **People and Brands (optional)**: set `PEOPLE_DB_ID` to turn this on. It is for people who share businesses, e.g. Liam and Jack sharing Natty, each with a personal brand.
+  - Each row in the Clients database is a **brand**. Each row in the People database (`Name`, `Email`, `App Password`, `Status`, `Brands`) is a **login** linked to one or more brands.
+  - People sign in with their own email and code. People logins are checked first, then client-row logins.
+  - Brand pills (*All · Natty · …*) filter Tasks and Documents. **Ready for your review** always shows every brand, with each card labelled.
+  - New project asks which brand it's for. Choosing a brand outside the person's own is rejected on the server.
+  - Each person has one Messages thread, on their People row, covering all their brands. Per-video feedback on shared brands shows who wrote each comment.
+  - Access is rebuilt from Notion on every request (`src/lib/viewer.ts`), so unlinking a brand takes effect immediately. The scope rules live in `src/lib/scope.ts`.
 - **Files** open through `/api/files/:id`. This route checks that the file belongs to the signed-in client, then redirects to a fresh link. Notion-hosted file links expire after about 1 hour.
 - **Messages** (the general chat) use the client's own row-page in the Clients DB as the thread.
   - Comments posted in the app appear in Notion under the client's name.

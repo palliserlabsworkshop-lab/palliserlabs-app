@@ -16,7 +16,7 @@ function CalendarIcon() {
 const linkPill =
   "pressable inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-[0.7rem] font-bold text-foreground hover:bg-foreground hover:text-on-ink";
 
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
   const kind = statusKind(task.status, task.done);
   const overdue = !task.done && task.dueDate !== null && isOverdue(task.dueDate);
   const showDownload = task.done && Boolean(task.finalVideo);
@@ -25,6 +25,7 @@ function TaskCard({ task }: { task: Task }) {
     <li className="card relative overflow-hidden py-3.5 pl-4 pr-3.5 sm:py-4 sm:pl-5 sm:pr-4">
       {/* Status bar — echoes the rounded bars of the Palliser Labs mark */}
       <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${STATUS_STYLES[kind].rail}`} aria-hidden />
+      {brandName && <span className="mb-1 block text-[0.66rem] font-bold uppercase tracking-[0.08em] text-muted">{brandName}</span>}
       <p
         className={`min-w-0 break-words text-[0.85rem] font-bold leading-snug sm:text-[0.92rem] ${
           task.done ? "text-muted" : "text-foreground"
@@ -71,7 +72,19 @@ function TaskCard({ task }: { task: Task }) {
   );
 }
 
-function Column({ title, tasks, empty, children }: { title: string; tasks: Task[]; empty: string; children?: React.ReactNode }) {
+function Column({
+  title,
+  tasks,
+  empty,
+  children,
+  brandNames,
+}: {
+  title: string;
+  tasks: Task[];
+  empty: string;
+  children?: React.ReactNode;
+  brandNames?: Record<string, string>;
+}) {
   return (
     <div className="min-w-0">
       <div className="mb-3 flex items-baseline gap-2 px-1">
@@ -81,7 +94,7 @@ function Column({ title, tasks, empty, children }: { title: string; tasks: Task[
       {tasks.length ? (
         <ul className="space-y-2.5">
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard key={task.id} task={task} brandName={task.brandId ? brandNames?.[task.brandId] : undefined} />
           ))}
         </ul>
       ) : (
@@ -149,15 +162,15 @@ export function TaskSummary({ tasks }: { tasks: Task[] }) {
  * Board for everything not in the Review section: Queued / In progress on the left,
  * finished work on the right, and older finished work tucked into a collapsed Archive.
  */
-export function TaskBoard({ tasks }: { tasks: Task[] }) {
+export function TaskBoard({ tasks, brandNames }: { tasks: Task[]; brandNames?: Record<string, string> }) {
   const active = tasks.filter((t) => !t.done && !t.archived);
   const done = tasks.filter((t) => t.done && !t.archived).reverse();
   const archived = tasks.filter((t) => t.archived).reverse();
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-5">
-      <Column title="In Progress" tasks={active} empty="Nothing in progress right now." />
-      <Column title="Completed" tasks={done} empty="Finished work will appear here.">
+      <Column title="In Progress" tasks={active} empty="Nothing in progress right now." brandNames={brandNames} />
+      <Column title="Completed" tasks={done} empty="Finished work will appear here." brandNames={brandNames}>
         {archived.length > 0 && (
           <details className="group mt-3">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-1 text-[0.75rem] font-bold text-muted hover:text-foreground">
@@ -175,7 +188,7 @@ export function TaskBoard({ tasks }: { tasks: Task[] }) {
             </summary>
             <ul className="mt-1 space-y-2.5 opacity-80">
               {archived.map((task) => (
-                <TaskCard key={task.id} task={task} />
+                <TaskCard key={task.id} task={task} brandName={task.brandId ? brandNames?.[task.brandId] : undefined} />
               ))}
             </ul>
           </details>

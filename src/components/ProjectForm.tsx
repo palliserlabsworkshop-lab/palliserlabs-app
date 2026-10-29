@@ -147,8 +147,25 @@ const EMPTY = {
   notes: "",
 };
 
-export function ProjectForm() {
+export function ProjectForm({
+  brands = [],
+  defaultBrandId = null,
+}: {
+  /** The person's brands — when there's more than one, the form asks which it's for. */
+  brands?: { id: string; name: string }[];
+  /** Pre-selected brand (the pill being viewed), if any. */
+  defaultBrandId?: string | null;
+}) {
   const router = useRouter();
+  const [brandId, setBrandId] = useState<string | null>(defaultBrandId);
+  const [brandError, setBrandError] = useState("");
+  // Follow the brand pill when the client switches brands.
+  const [seenDefault, setSeenDefault] = useState(defaultBrandId);
+  if (seenDefault !== defaultBrandId) {
+    setSeenDefault(defaultBrandId);
+    setBrandId(defaultBrandId);
+  }
+  const askBrand = brands.length > 1;
   const formRef = useRef<HTMLFormElement>(null);
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState(EMPTY);
@@ -186,6 +203,7 @@ export function ProjectForm() {
 
   const payload = () => ({
     ...values,
+    brandId: brandId ?? "",
     driveLinks: values.driveLinks.map((l) => l.trim()).filter(Boolean),
     referenceLinks: values.referenceLinks.map((l) => l.trim()).filter(Boolean),
   });
@@ -193,6 +211,11 @@ export function ProjectForm() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError("");
+    if (askBrand && !brandId) {
+      setBrandError("Choose which brand this is for.");
+      formRef.current?.querySelector<HTMLElement>('[data-field="brand"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     const { errors: errs } = validateBrief(payload());
     if (Object.keys(errs).length) {
       setErrors(errs);
@@ -307,6 +330,38 @@ export function ProjectForm() {
           Cancel
         </button>
       </div>
+
+      {askBrand && (
+        <div data-field="brand">
+          <GroupHeader label="Brand" required error={brandError} errorId="err-brand" />
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Brand">
+            {brands.map((b) => {
+              const checked = brandId === b.id;
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={checked}
+                  onClick={() => {
+                    setBrandId(b.id);
+                    setBrandError("");
+                  }}
+                  className={`pressable min-h-11 rounded-full border px-4 text-[0.8rem] font-bold ${
+                    checked
+                      ? "border-foreground bg-foreground text-on-ink"
+                      : brandError
+                        ? "border-orange/60 bg-card text-foreground"
+                        : "border-line bg-card text-foreground hover:border-foreground/30"
+                  }`}
+                >
+                  {b.name || "Untitled brand"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Project name */}
       <div data-field="projectName">

@@ -144,7 +144,7 @@ function FeedbackThread({ taskId }: { taskId: string }) {
   );
 }
 
-function ReviewCard({ task }: { task: Task }) {
+function ReviewCard({ task, brandName }: { task: Task; brandName?: string }) {
   const router = useRouter();
   const serverStage = reviewStage(task) ?? "review";
   // A local stage lets the card move on instantly after an action; it resets whenever
@@ -201,6 +201,7 @@ function ReviewCard({ task }: { task: Task }) {
   const header = (
     <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-5 pt-5">
       <div className="min-w-0">
+        {brandName && <span className="mb-1 block text-[0.68rem] font-bold uppercase tracking-[0.08em] text-muted">{brandName}</span>}
         <h3 className="break-words text-[1rem] font-bold leading-snug">{task.title}</h3>
         {task.dueDate && <p className="mt-1 text-[0.75rem] text-muted">Due {formatDueDate(task.dueDate)}</p>}
       </div>
@@ -399,11 +400,11 @@ function ReviewCard({ task }: { task: Task }) {
 }
 
 /** Top-of-dashboard section: videos to review, tweaks underway, and approved cuts to download. */
-export function ReviewSection({ tasks }: { tasks: Task[] }) {
+export function ReviewSection({ tasks, brandNames }: { tasks: Task[]; brandNames?: Record<string, string> }) {
   return (
     <div className="space-y-4">
       {tasks.map((t) => (
-        <ReviewCard key={t.id} task={t} />
+        <ReviewCard key={t.id} task={t} brandName={t.brandId ? brandNames?.[t.brandId] : undefined} />
       ))}
     </div>
   );

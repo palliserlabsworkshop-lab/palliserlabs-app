@@ -10,6 +10,8 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { ProjectForm } from "@/components/ProjectForm";
 import { FloatingNav } from "@/components/FloatingNav";
 import { ReviewSection } from "@/components/ReviewSection";
+import { BrandSwitcher } from "@/components/BrandSwitcher";
+import { scopeBrands } from "@/lib/scope";
 import { reviewStage } from "@/lib/review";
 import { getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
 import { getViewer } from "@/lib/viewer";
@@ -43,10 +45,17 @@ function Section({
   );
 }
 
-async function Dashboard() {
+async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: string | string[] }> }) {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
-  const client = viewer.brands[0] ?? { id: viewer.id, name: viewer.name, company: "", email: viewer.email };
+  const multi = viewer.brands.length > 1;
+  // ?brand= is only a view filter — scopeBrands ignores anything not in the viewer's own set.
+  const requested = (await searchParams).brand;
+  const scoped = scopeBrands(viewer.brandIds, typeof requested === "string" ? requested : null);
+  const activeBrand = multi && scoped.length === 1 ? scoped[0] : null;
+  const brandNames: Record<string, string> = Object.fromEntries(viewer.brands.map((b) => [b.id, b.name]));
+  const showBrandLabels = multi && !activeBrand;
+  const single = viewer.brands[0];
 
   // Check the Drive "Final edits" folder in the background (at most once a minute);
   // anything delivered shows up on the next auto-refresh.
@@ -65,8 +74,13 @@ async function Dashboard() {
 
   // Videos waiting on the client (or being tweaked / ready to download) get their own section up top;
   // the board shows everything else, so nothing appears twice.
+  // The review section always covers every brand, so nothing waiting is missed;
+  // the board and documents follow the selected brand pill.
+  const inScope = (brandId: string | null) => !activeBrand || brandId === activeBrand;
   const reviewTasks = tasks.filter((t) => reviewStage(t));
-  const boardTasks = tasks.filter((t) => !reviewStage(t));
+  const boardTasks = tasks.filter((t) => !reviewStage(t) && inScope(t.brandId));
+  const scopedTasks = tasks.filter((t) => inScope(t.brandId));
+  const scopedFiles = files.filter((f) => inScope(f.brandId));
   const toReview = reviewTasks.filter((t) => reviewStage(t) === "review").length;
 
   return (
@@ -76,12 +90,16 @@ async function Dashboard() {
       <section className="animate-rise">
         <p className="text-[0.95rem] text-muted">Welcome back,</p>
         <h1 className="mt-1 break-words font-display text-[2.5rem] font-medium leading-[1.04] tracking-[-0.03em] sm:text-[3.4rem]">
-          {client.name || "there"}
+          {viewer.name || "there"}
         </h1>
-        {client.company && (
-          <p className="mt-4 inline-flex items-center rounded-full border border-line bg-card px-3.5 py-1.5 text-[0.8rem] font-bold text-foreground">
-            {client.company}
-          </p>
+        {multi ? (
+          <BrandSwitcher brands={viewer.brands} active={activeBrand} />
+        ) : (
+          (single?.company || (viewer.kind === "person" && single?.name)) && (
+            <p className="mt-4 inline-flex items-center rounded-full border border-line bg-card px-3.5 py-1.5 text-[0.8rem] font-bold text-foreground">
+              {single.company || single.name}
+            </p>
+          )
         )}
       </section>
 
@@ -98,7 +116,7 @@ async function Dashboard() {
         }
       >
         {reviewTasks.length ? (
-          <ReviewSection tasks={reviewTasks} />
+          <ReviewSection tasks={reviewTasks} brandNames={multi ? brandNames : undefined} />
         ) : (
           <div className="card flex items-center gap-4 p-5">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-surface text-muted" aria-hidden>
@@ -116,19 +134,22 @@ async function Dashboard() {
       </Section>
 
       <Section id="tasks" title="Tasks" delay={80}>
-        <TaskSummary tasks={tasks} />
-        <TaskBoard tasks={boardTasks} />
+        <TaskSummary tasks={scopedTasks} />
+        <TaskBoard tasks={boardTasks} brandNames={showBrandLabels ? brandNames : undefined} />
       </Section>
 
       <Section id="new-project" title="New project" delay={160}>
-        <ProjectForm />
+        <ProjectForm
+          brands={multi ? viewer.brands.map((b) => ({ id: b.id, name: b.name })) : []}
+          defaultBrandId={activeBrand ?? (multi ? null : single?.id ?? null)}
+        />
       </Section>
 
-      <Section id="documents" title="Documents" delay={240} aside={files.length ? `${files.length} shared` : undefined}>
-        <FileList files={files} />
+      <Section id="documents" title="Documents" delay={240} aside={scopedFiles.length ? `${scopedFiles.length} shared` : undefined}>
+        <FileList files={scopedFiles} brandNames={showBrandLabels ? brandNames : undefined} />
       </Section>
 
-      <Section id="messages" title="Messages" delay={320} subtitle="Your direct line to the Palliser Labs team.">
+      <Section id="messages" title="Messages" delay={320} subtitle={multi ? "Your direct line to the Palliser Labs team — for all your brands." : "Your direct line to the Palliser Labs team."}>
         <Comments initial={comments ?? []} initialError={comments === null} />
       </Section>
     </>
@@ -157,10 +178,10 @@ function DashboardSkeleton() {
   );
 }
 
-export default function DashboardPage() {
+export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   return (
     <Suspense fallback={<DashboardSkeleton />}>
-      <Dashboard />
+      <Dashboard searchParams={searchParams} />
     </Suspense>
   );
 }

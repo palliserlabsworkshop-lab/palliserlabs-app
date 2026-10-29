@@ -26,7 +26,7 @@ function ArrowIcon() {
   );
 }
 
-export function FileList({ files }: { files: ClientFile[] }) {
+export function FileList({ files, brandNames }: { files: ClientFile[]; brandNames?: Record<string, string> }) {
   if (!files.length) {
     return (
       <p className="rounded-[1.25rem] border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
@@ -49,7 +49,10 @@ export function FileList({ files }: { files: ClientFile[] }) {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[0.9rem] font-bold text-foreground">{file.name}</span>
-              <span className="mt-0.5 block text-[0.75rem] text-muted">{file.type || "File"}</span>
+              <span className="mt-0.5 block text-[0.75rem] text-muted">
+                {file.type || "File"}
+                {file.brandId && brandNames?.[file.brandId] ? ` · ${brandNames[file.brandId]}` : ""}
+              </span>
             </span>
           </>
         );
