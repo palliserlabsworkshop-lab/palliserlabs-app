@@ -51,58 +51,72 @@ export function FloatingNav({ showReview = false, reviewCount = 0 }: { showRevie
   const ITEMS = showReview ? [REVIEW_ITEM, ...BASE_ITEMS] : BASE_ITEMS;
   const ids = ITEMS.map((i) => i.id).join(",");
   const [active, setActive] = useState(ITEMS[0].id);
-  // While a tap-triggered scroll is running, the section tracker stays quiet so the
-  // highlight goes straight to the tapped tab instead of flicking through every section it passes.
-  const tapLock = useRef(false);
-  const unlockTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // While a tap-triggered scroll runs, position tracking pauses so the highlight
+  // stays on the tapped tab instead of passing through every section on the way.
+  const scrollingTo = useRef<string | null>(null);
+
+  // The active tab is the last section whose top has crossed a line ~35% down the screen.
+  // Purely position-based, so it changes once per boundary and never flickers.
+  useEffect(() => {
+    const sectionIds = ids.split(",");
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (scrollingTo.current) return;
+      const line = window.innerHeight * 0.35;
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      let current = sectionIds[0];
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= line) current = id;
+      }
+      if (atBottom) current = sectionIds[sectionIds.length - 1];
+      setActive((prev) => (prev === current ? prev : current));
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [ids]);
 
   function goTo(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
     const el = document.getElementById(id);
     if (!el) return;
     e.preventDefault();
     setActive(id);
-    tapLock.current = true;
+    scrollingTo.current = id;
+
+    const headerOffset = 88; // sticky header + breathing room
+    const maxY = document.documentElement.scrollHeight - window.innerHeight;
+    const target = Math.max(0, Math.min(maxY, el.getBoundingClientRect().top + window.scrollY - headerOffset));
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    window.scrollTo({ top: target, behavior: reduceMotion ? "auto" : "smooth" });
     history.replaceState(null, "", `#${id}`);
 
-    // Unlock once scrolling has settled (or after a safety timeout).
-    const release = () => {
-      clearTimeout(unlockTimer.current);
-      unlockTimer.current = setTimeout(() => {
-        tapLock.current = false;
-        window.removeEventListener("scroll", release);
-      }, 160);
+    // Release once the page has arrived (or stopped moving for a few frames), with a safety cap.
+    let frames = 0; // safety cap: ~2.5s at 60fps
+    let lastY = window.scrollY;
+    let still = 0;
+    const watch = () => {
+      const y = window.scrollY;
+      still = Math.abs(y - lastY) < 0.5 ? still + 1 : 0;
+      lastY = y;
+      const arrived = Math.abs(y - target) < 2;
+      if ((arrived && still >= 2) || still >= 12 || ++frames > 150) {
+        scrollingTo.current = null;
+        return;
+      }
+      requestAnimationFrame(watch);
     };
-    window.addEventListener("scroll", release, { passive: true });
-    release();
-    setTimeout(() => {
-      tapLock.current = false;
-      window.removeEventListener("scroll", release);
-    }, 1800);
+    requestAnimationFrame(watch);
   }
-
-  useEffect(() => {
-    const visible = new Map<string, number>();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) visible.set(e.target.id, e.isIntersecting ? e.intersectionRatio : 0);
-        if (tapLock.current) return;
-        // At the very bottom the last section may be short — treat it as active.
-        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
-          return setActive(ids.split(",").at(-1)!);
-        }
-        const best = [...visible.entries()].sort((a, b) => b[1] - a[1])[0];
-        if (best && best[1] > 0) setActive(best[0]);
-      },
-      { rootMargin: "-80px 0px -45% 0px", threshold: [0, 0.15, 0.4, 0.75] },
-    );
-    for (const id of ids.split(",")) {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
-  }, [ids]);
 
   const index = Math.max(0, ITEMS.findIndex((i) => i.id === active));
   const n = ITEMS.length;
@@ -117,7 +131,7 @@ export function FloatingNav({ showReview = false, reviewCount = 0 }: { showRevie
         {/* Sliding highlight behind the active item */}
         <span
           aria-hidden
-          className="absolute inset-y-1.5 left-1.5 rounded-full bg-foreground shadow-sm transition-transform duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)]"
+          className="absolute inset-y-1.5 left-1.5 rounded-full bg-foreground shadow-sm transition-transform duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform"
           style={{ width: `calc((100% - 0.75rem) / ${n})`, transform: `translateX(${index * 100}%)` }}
         />
         {ITEMS.map((item) => {
@@ -128,7 +142,7 @@ export function FloatingNav({ showReview = false, reviewCount = 0 }: { showRevie
               href={`#${item.id}`}
               aria-current={isActive ? "true" : undefined}
               onClick={(e) => goTo(e, item.id)}
-              className={`pressable relative z-10 flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-full text-[0.68rem] font-bold transition-colors duration-300 ${
+              className={`relative z-10 flex min-h-12 select-none flex-col items-center justify-center gap-0.5 rounded-full text-[0.68rem] font-bold transition-[color,opacity] duration-300 [-webkit-tap-highlight-color:transparent] active:opacity-60 ${
                 isActive ? "text-white" : "text-muted hover:text-foreground"
               }`}
             >
