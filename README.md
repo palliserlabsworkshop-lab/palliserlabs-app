@@ -43,7 +43,7 @@ The app reads each database's schema at runtime, so property types are flexible:
   - The answers are saved in `Brief Data` as JSON option keys (e.g. `talking_head`), so the labels in `src/lib/brief.ts` can change without breaking old data.
   - A readable copy of the brief is written into the Notion page body for the editor.
   - Clients can open each project's brief from its task card in the app.
-- **Video review**: set Status to *Ready for review* with a `Final Video` link (Drive file or folder), and the video appears at the top of the client's dashboard with an embedded player.
+- **Video review**: set Status to *Ready for review* with a `Final Video` link (Drive file or folder), and the video appears at the top of the client's dashboard as a cover (its Drive thumbnail) with a play button that opens it in Google Drive. Phone browsers block Drive's embedded player, so the app doesn't embed it.
   - **Approve** sets *Approved* and `Approved on`.
   - **Request changes** sets *Tweaks requested*, adds 1 to `Revision round`, and posts the request as a comment on the task page.
   - Each video has its own feedback thread, made of page-level comments on the task.

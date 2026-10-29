@@ -4,41 +4,74 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { approveVideoAction, requestTweaksAction } from "@/app/actions";
 import type { Task } from "@/lib/notion";
-import { driveEmbed, reviewStage, TWEAK_AREAS, type ReviewStage as Stage } from "@/lib/review";
+import { driveInfo, reviewStage, TWEAK_AREAS, type ReviewStage as Stage } from "@/lib/review";
 import { formatDueDate } from "@/lib/format";
 import { Comments } from "./Comments";
 
 
 function Player({ link }: { link: string }) {
-  const embed = driveEmbed(link);
+  const info = driveInfo(link);
+  // Only reveal the thumbnail once it has actually loaded — never a broken-image icon.
+  const [thumbLoaded, setThumbLoaded] = useState(false);
+  const isFolder = info?.kind === "folder";
+
   return (
-    <div className="overflow-hidden rounded-2xl bg-foreground/[0.04] ring-1 ring-line">
-      {embed ? (
-        <iframe
-          src={embed.src}
-          title="Video preview"
-          allow="autoplay; fullscreen"
-          allowFullScreen
-          loading="lazy"
-          className={`block w-full border-0 bg-surface ${embed.kind === "file" ? "aspect-video" : "h-80"}`}
+    <a
+      href={link}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={isFolder ? "Open the video folder in Google Drive" : "Watch the video in Google Drive"}
+      className="group relative block aspect-video overflow-hidden rounded-2xl bg-foreground ring-1 ring-line"
+    >
+      {/* Branded cover — shown for folders, and until (or unless) a thumbnail loads */}
+      <span className="absolute left-5 top-5 flex h-12 items-start gap-1.5 opacity-50" aria-hidden>
+        <span className="h-12 w-3.5 rounded-full bg-yellow" />
+        <span className="h-5 w-3.5 rounded-full bg-orange" />
+        <span className="h-12 w-3.5 rounded-full bg-accent" />
+        <span className="mt-7 h-5 w-3.5 rounded-full bg-primary" />
+      </span>
+      {info?.thumbnail && (
+        // eslint-disable-next-line @next/next/no-img-element -- remote Drive thumbnail, not worth optimising
+        <img
+          src={info.thumbnail}
+          alt=""
+          referrerPolicy="no-referrer"
+          ref={(img) => {
+            if (img?.complete && img.naturalWidth > 0) setThumbLoaded(true);
+          }}
+          onLoad={() => setThumbLoaded(true)}
+          className={`absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03] ${
+            thumbLoaded ? "opacity-90 group-hover:opacity-100" : "invisible opacity-0"
+          }`}
         />
-      ) : (
-        <div className="flex aspect-video items-center justify-center px-6 text-center text-sm text-muted">
-          Preview isn’t available for this link — open it in Google Drive below.
-        </div>
       )}
-      <a
-        href={link}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex min-h-11 items-center justify-center gap-1.5 border-t border-line bg-card text-[0.78rem] font-bold text-foreground transition-colors hover:bg-surface"
-      >
-        Open in Google Drive
-        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden>
-          <path d="M5 11l6-6M6 5h5v5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </a>
-    </div>
+      <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" aria-hidden />
+
+      {/* Play button */}
+      <span className="absolute inset-0 flex items-center justify-center" aria-hidden>
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 shadow-lg backdrop-blur transition duration-300 ease-[var(--ease-spring)] group-hover:scale-110 group-active:scale-95">
+          {isFolder ? (
+            <svg viewBox="0 0 24 24" className="h-7 w-7 text-foreground" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2h9A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5Z" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" className="ml-1 h-7 w-7 text-foreground" fill="currentColor">
+              <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />
+            </svg>
+          )}
+        </span>
+      </span>
+
+      <span className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 px-4 pb-3.5 text-white">
+        <span className="text-[0.85rem] font-bold">{isFolder ? "Open folder" : "Watch video"}</span>
+        <span className="inline-flex items-center gap-1 text-[0.72rem] font-bold opacity-85">
+          Opens in Google Drive
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden>
+            <path d="M5 11l6-6M6 5h5v5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </span>
+    </a>
   );
 }
 
