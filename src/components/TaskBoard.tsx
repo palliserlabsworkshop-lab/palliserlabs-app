@@ -138,7 +138,7 @@ export function TaskSummary({ tasks }: { tasks: Task[] }) {
           .map(({ kind }, i) => (
             <span
               key={kind}
-              className={`h-full origin-left animate-grow rounded-full ${STATUS_STYLES[kind].rail}`}
+              className={`h-full origin-left animate-grow rounded-full transition-[flex-grow] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${STATUS_STYLES[kind].rail}`}
               style={{ flexGrow: counts[kind], flexBasis: 0, minWidth: "0.625rem", animationDelay: `${200 + i * 120}ms` }}
             />
           ))}

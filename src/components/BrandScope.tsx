@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useLayoutEffect, useRef, useState } from "react";
 import type { ClientFile, Task } from "@/lib/notion";
 import { TaskBoard, TaskSummary } from "./TaskBoard";
 import { FileList } from "./FileList";
@@ -37,30 +37,60 @@ export function BrandScopeProvider({
   return <ScopeContext.Provider value={{ active, setActive, brands }}>{children}</ScopeContext.Provider>;
 }
 
+/**
+ * Apple-style segmented control: one rounded track with a white thumb that slides to the
+ * selected brand. Scrolls sideways when there are more brands than fit.
+ */
 export function BrandPills() {
   const { active, setActive, brands } = useContext(ScopeContext);
-  const pill = (selected: boolean) =>
-    `pressable inline-flex min-h-10 shrink-0 items-center rounded-full border px-4 text-[0.8rem] font-bold transition-colors duration-200 ${
-      selected ? "border-foreground bg-foreground text-on-ink" : "border-line bg-card text-foreground hover:border-foreground/30"
-    }`;
+  const options = [{ id: null as string | null, name: "All" }, ...brands];
+  const trackRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
+  const index = Math.max(0, options.findIndex((o) => o.id === active));
+
+  // Measure the selected segment so the thumb can slide to it (segments have different widths).
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = buttonRefs.current[index];
+      if (el) setThumb({ x: el.offsetLeft, w: el.offsetWidth });
+    };
+    measure();
+    buttonRefs.current[index]?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [index, brands.length]);
+
   return (
     <nav aria-label="Brands" className="-mx-5 mt-5 overflow-x-auto px-5 [scrollbar-width:none] sm:-mx-8 sm:px-8">
-      <div className="flex w-max gap-2 pb-1" role="tablist">
-        <button type="button" role="tab" aria-selected={!active} onClick={() => setActive(null)} className={pill(!active)}>
-          All
-        </button>
-        {brands.map((b) => (
-          <button
-            key={b.id}
-            type="button"
-            role="tab"
-            aria-selected={active === b.id}
-            onClick={() => setActive(b.id)}
-            className={pill(active === b.id)}
-          >
-            {b.name || "Untitled brand"}
-          </button>
-        ))}
+      <div ref={trackRef} role="tablist" className="relative inline-flex rounded-full bg-surface p-1 ring-1 ring-inset ring-line/60">
+        {thumb && (
+          <span
+            aria-hidden
+            className="absolute inset-y-1 left-0 rounded-full bg-thumb shadow-[0_1px_2px_rgb(0_0_0/0.08),0_2px_8px_-2px_rgb(0_0_0/0.12)] ring-1 ring-black/[0.04] transition-[transform,width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+            style={{ transform: `translateX(${thumb.x}px)`, width: thumb.w }}
+          />
+        )}
+        {options.map((o, i) => {
+          const selected = i === index;
+          return (
+            <button
+              key={o.id ?? "all"}
+              ref={(el) => {
+                buttonRefs.current[i] = el;
+              }}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => setActive(o.id)}
+              className={`relative z-10 min-h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-[0.82rem] font-bold transition-colors duration-200 [-webkit-tap-highlight-color:transparent] active:opacity-60 ${
+                selected ? "text-foreground" : "text-muted hover:text-foreground"
+              }`}
+            >
+              {o.name || "Untitled brand"}
+            </button>
+          );
+        })}
       </div>
     </nav>
   );
@@ -76,12 +106,13 @@ function useScoped() {
 
 /** Tasks summary + board for the selected brand. `boardTasks` excludes videos shown in Review. */
 export function ScopedTasks({ allTasks, boardTasks }: { allTasks: Task[]; boardTasks: Task[] }) {
-  const { active, inScope, labels } = useScoped();
+  const { inScope, labels } = useScoped();
+  // Swaps in place (no remount), so switching brands is immediate rather than replaying entrance animations.
   return (
-    <div key={active ?? "all"} className="animate-rise">
+    <>
       <TaskSummary tasks={allTasks.filter((t) => inScope(t.brandId))} />
       <TaskBoard tasks={boardTasks.filter((t) => inScope(t.brandId))} brandNames={labels} />
-    </div>
+    </>
   );
 }
 

@@ -28,6 +28,7 @@
 
   --brand-on-ink: #ffffff;       /* Text on ink-filled buttons */
   --brand-tile: #e9e9ee;         /* Lower edge of the video tile gradient */
+  --brand-thumb: #ffffff;        /* Selected segment in segmented controls */
   color-scheme: light;
 }
 
@@ -48,6 +49,7 @@
   --brand-success: #34c759;
   --brand-on-ink: #0f0f11;
   --brand-tile: #1c1c1f;
+  --brand-thumb: #45454c;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -65,6 +67,7 @@
     --brand-success: #34c759;
     --brand-on-ink: #0f0f11;
     --brand-tile: #1c1c1f;
+    --brand-thumb: #45454c;
     color-scheme: dark;
   }
 }
@@ -81,6 +84,7 @@
   --color-card: var(--brand-card);
   --color-success: var(--brand-success);
   --color-on-ink: var(--brand-on-ink);
+  --color-thumb: var(--brand-thumb);
   --color-primary-ink: var(--brand-primary-ink);
   --color-accent-ink: var(--brand-accent-ink);
   --color-yellow-ink: var(--brand-yellow-ink);
