@@ -25,12 +25,14 @@ import {
   FILE_PROPS,
   HIDE_DONE_AFTER_DAYS,
   NEW_PROJECT_STATUS,
+  SCRIPT_STATUS,
   TASK_PROPS,
   TWEAKS_STATUS,
 } from "./schema";
 import { statusKind } from "./status";
 import { ownBrandOf } from "./scope";
 import { briefRows, FORMAT_OPTIONS, labelsFor, parseBrief, PLATFORM_OPTIONS, type Brief } from "./brief";
+import { scriptAdds, scriptKind, type ScriptRequest } from "./script";
 
 // ---------------------------------------------------------------------------
 // Client + data source resolution
@@ -388,6 +390,10 @@ export type Task = {
   archived: boolean;
   /** Which of the viewer's brands this task belongs to (null outside a viewer context). */
   brandId: string | null;
+  /** Script step ("" when the project didn't start with a script). */
+  scriptStatus: string;
+  script: string;
+  scriptLink: string | null;
 };
 
 const DAY_MS = 86_400_000;
@@ -421,7 +427,33 @@ function toTask(page: PageObjectResponse, viewerBrandIds: string[] = [], brandCo
     downloadedOn,
     archived,
     brandId: brandCol ? ownBrandOf(relationIds(page, brandCol), viewerBrandIds) : null,
+    scriptStatus: getText(page, TASK_PROPS.scriptStatus),
+    script: getText(page, TASK_PROPS.script),
+    scriptLink: getText(page, TASK_PROPS.scriptLink) || null,
   };
+}
+
+/**
+ * Notion returns at most 25 pieces of a text property in query results (each run of
+ * formatting is a piece), so a long or heavily formatted script is fetched in full here.
+ */
+async function fullText(page: PageObjectResponse, wanted: string): Promise<string | null> {
+  const prop = findProp(page, wanted);
+  if (prop?.type !== "rich_text" || prop.rich_text.length < 25) return null;
+  const parts: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const res = await notion().pages.properties.retrieve({ page_id: page.id, property_id: prop.id, start_cursor: cursor });
+    if (!("results" in res)) break;
+    for (const item of res.results) if (item.type === "rich_text") parts.push(item.rich_text.plain_text);
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+  return parts.join("").trim();
+}
+
+async function withFullScript(page: PageObjectResponse, task: Task): Promise<Task> {
+  const text = await fullText(page, TASK_PROPS.script).catch(() => null);
+  return text === null ? task : { ...task, script: text };
 }
 
 export async function getTasks(brandIds: string[]): Promise<Task[]> {
@@ -432,7 +464,14 @@ export async function getTasks(brandIds: string[]): Promise<Task[]> {
   const dueDate = resolveName(Object.keys(ds.schema), TASK_PROPS.dueDate);
   const sorts: Sorts = ds.schema[dueDate] ? [{ property: dueDate, direction: "ascending" }] : undefined;
   const pages = await queryAll(ds, filter, sorts);
-  return pages.map((page) => toTask(page, brandIds, col));
+  return Promise.all(
+    pages.map((page) => {
+      const task = toTask(page, brandIds, col);
+      // Only scripts the client can see right now need their full text.
+      const kind = scriptKind(task.scriptStatus);
+      return kind === "review" || kind === "approved" ? withFullScript(page, task) : task;
+    }),
+  );
 }
 
 /** Loads one task page — only if it's linked to one of the viewer's brands. The ownership gate for every task action. */
@@ -449,7 +488,15 @@ async function getOwnedTaskPage(brandIds: string[], taskId: string): Promise<Pag
 /** Writes task properties by name, shaping each value to the column's actual type. Missing columns are skipped. */
 async function updateTask(
   pageId: string,
-  values: { status?: string; dates?: Record<string, string>; numbers?: Record<string, number>; urls?: Record<string, string> },
+  values: {
+    status?: string;
+    /** Select or Status columns, by name. */
+    selects?: Record<string, string>;
+    dates?: Record<string, string>;
+    numbers?: Record<string, number>;
+    urls?: Record<string, string>;
+    texts?: Record<string, string>;
+  },
 ) {
   const ds = await dataSource(env.tasksDbId);
   const names = Object.keys(ds.schema);
@@ -458,6 +505,15 @@ async function updateTask(
     const name = resolveName(names, TASK_PROPS.status);
     if (ds.schema[name] === "status") properties[name] = { status: { name: values.status } };
     if (ds.schema[name] === "select") properties[name] = { select: { name: values.status } };
+  }
+  for (const [wanted, option] of Object.entries(values.selects ?? {})) {
+    const name = resolveName(names, wanted);
+    if (ds.schema[name] === "status") properties[name] = { status: { name: option } };
+    if (ds.schema[name] === "select") properties[name] = { select: { name: option } };
+  }
+  for (const [wanted, text] of Object.entries(values.texts ?? {})) {
+    const name = resolveName(names, wanted);
+    if (ds.schema[name] === "rich_text") properties[name] = { rich_text: chunkText(text) };
   }
   for (const [wanted, date] of Object.entries(values.dates ?? {})) {
     const name = resolveName(names, wanted);
@@ -683,64 +739,87 @@ function briefBlocks(brief: Brief) {
 
 export type ProjectResult = { id: string };
 
-/** Creates a Queued task for the client from a validated brief. */
-/** Icon given to tasks created from the portal. */
+/** Icons given to tasks created from the portal. */
 const PROJECT_ICON = "🎬";
+const SCRIPT_ICON = "✍️";
 
-export async function createProject(actor: Actor, brandId: string, brief: Brief): Promise<ProjectResult> {
+type Props = Record<string, unknown>;
+type CreateProps = Parameters<Client["pages"]["create"]>[0]["properties"];
+type Children = Parameters<Client["pages"]["create"]>[0]["children"];
+
+/** The Tasks DB column names, resolved against the live schema. */
+async function taskColumns() {
   const ds = await dataSource(env.tasksDbId);
   const names = Object.keys(ds.schema);
   const col = (wanted: string) => resolveName(names, wanted);
-  const titleName = names.find((n) => ds.schema[n] === "title") ?? TASK_PROPS.title;
-  const statusName = col(TASK_PROPS.status);
-  const linkName = col(TASK_PROPS.videoLink);
-  const briefName = col(TASK_PROPS.briefData);
-  const clientName = brandColumn(ds.schema, TASK_PROPS.client);
-  const requestedByName = col(TASK_PROPS.requestedBy);
-  const dueName = col(TASK_PROPS.dueDate);
-  const hooksName = col(TASK_PROPS.hooks);
-  const formatName = col(TASK_PROPS.format);
-  const platformName = col(TASK_PROPS.platform);
-
-  // Essentials: always written. If anything optional is rejected, we retry with just these
-  // so a client's brief is never lost (the full brief is also in the page body).
-  const essentials: Record<string, unknown> = {
-    [titleName]: { title: chunkText(brief.projectName) },
-    [clientName]: { relation: [{ id: brandId }] },
+  return {
+    ds,
+    type: (name: string) => ds.schema[name],
+    title: names.find((n) => ds.schema[n] === "title") ?? TASK_PROPS.title,
+    status: col(TASK_PROPS.status),
+    client: brandColumn(ds.schema, TASK_PROPS.client),
+    requestedBy: col(TASK_PROPS.requestedBy),
+    col,
   };
-  if (ds.schema[briefName] === "rich_text") essentials[briefName] = { rich_text: chunkText(JSON.stringify(brief)) };
+}
 
-  // Optional columns: only written when they exist with the expected type.
-  const optional: Record<string, unknown> = {};
-  if (ds.schema[linkName] === "url") optional[linkName] = { url: brief.driveLinks[0] };
-  else if (ds.schema[linkName] === "rich_text") optional[linkName] = { rich_text: chunkText(brief.driveLinks.join("\n")) };
-  if (ds.schema[dueName] === "date" && brief.deadline) optional[dueName] = { date: { start: brief.deadline } };
-  if (ds.schema[hooksName] === "number" && brief.hookCount) optional[hooksName] = { number: brief.hookCount };
+const optionValue = (type: string | undefined, name: string): unknown =>
+  type === "status" ? { status: { name } } : type === "select" ? { select: { name } } : undefined;
+
+/** Columns filled from a video brief: Brief Data, Video Link, Due date, Hooks, Format, Platform. */
+function videoBriefProps(cols: Awaited<ReturnType<typeof taskColumns>>, brief: Brief): { essential: Props; optional: Props } {
+  const { col, type } = cols;
+  const essential: Props = {};
+  const optional: Props = {};
+  const briefName = col(TASK_PROPS.briefData);
+  if (type(briefName) === "rich_text") essential[briefName] = { rich_text: chunkText(JSON.stringify(brief)) };
+  const linkName = col(TASK_PROPS.videoLink);
+  if (type(linkName) === "url") optional[linkName] = { url: brief.driveLinks[0] };
+  else if (type(linkName) === "rich_text") optional[linkName] = { rich_text: chunkText(brief.driveLinks.join("\n")) };
+  const dueName = col(TASK_PROPS.dueDate);
+  if (type(dueName) === "date" && brief.deadline) optional[dueName] = { date: { start: brief.deadline } };
+  const hooksName = col(TASK_PROPS.hooks);
+  if (type(hooksName) === "number" && brief.hookCount) optional[hooksName] = { number: brief.hookCount };
   // Multi-select option names can't contain commas, so "Other" is written plainly (details are in the brief).
   const options = (labels: string[]) => labels.map((name) => ({ name: name.replace(/,/g, " ").slice(0, 100) }));
-  if (ds.schema[formatName] === "multi_select") {
-    optional[formatName] = { multi_select: options(labelsFor(brief.format, FORMAT_OPTIONS)) };
-  }
-  if (ds.schema[platformName] === "multi_select") {
+  const formatName = col(TASK_PROPS.format);
+  if (type(formatName) === "multi_select") optional[formatName] = { multi_select: options(labelsFor(brief.format, FORMAT_OPTIONS)) };
+  const platformName = col(TASK_PROPS.platform);
+  if (type(platformName) === "multi_select") {
     optional[platformName] = { multi_select: options(labelsFor(brief.platform, PLATFORM_OPTIONS)) };
   }
-  // Who asked for it — a link to their People row, or just their name.
-  if (ds.schema[requestedByName] === "relation") {
-    optional[requestedByName] = { relation: [{ id: actor.id }] };
-  } else if (ds.schema[requestedByName] === "rich_text" && actor.name) {
-    optional[requestedByName] = { rich_text: chunkText(actor.name) };
+  const status = optionValue(type(cols.status), NEW_PROJECT_STATUS);
+  if (status) optional[cols.status] = status;
+  return { essential, optional };
+}
+
+/** Who asked for it — a link to their People row, or just their name. */
+function requestedByProp(cols: Awaited<ReturnType<typeof taskColumns>>, actor: Actor): Props {
+  if (cols.type(cols.requestedBy) === "relation") return { [cols.requestedBy]: { relation: [{ id: actor.id }] } };
+  if (cols.type(cols.requestedBy) === "rich_text" && actor.name) {
+    return { [cols.requestedBy]: { rich_text: chunkText(actor.name) } };
   }
-  if (ds.schema[statusName] === "status") optional[statusName] = { status: { name: NEW_PROJECT_STATUS } };
-  if (ds.schema[statusName] === "select") optional[statusName] = { select: { name: NEW_PROJECT_STATUS } };
+  return {};
+}
 
-  const create = (props: Record<string, unknown>) =>
+/**
+ * Creates a task row. If Notion rejects an optional column (e.g. a missing Select option),
+ * it retries with the essentials only, so a client's request is never lost.
+ */
+async function createTaskPage(
+  cols: Awaited<ReturnType<typeof taskColumns>>,
+  icon: string,
+  essentials: Props,
+  optional: Props,
+  children: unknown[],
+): Promise<ProjectResult> {
+  const create = (props: Props) =>
     notion().pages.create({
-      parent: { data_source_id: ds.id },
-      icon: { type: "emoji", emoji: PROJECT_ICON },
-      properties: props as Parameters<Client["pages"]["create"]>[0]["properties"],
-      children: briefBlocks(brief) as Parameters<Client["pages"]["create"]>[0]["children"],
+      parent: { data_source_id: cols.ds.id },
+      icon: { type: "emoji", emoji: icon as "🎬" },
+      properties: props as CreateProps,
+      children: children as Children,
     });
-
   try {
     const page = await create({ ...essentials, ...optional });
     return { id: page.id };
@@ -752,6 +831,130 @@ export async function createProject(actor: Actor, brandId: string, brief: Brief)
   }
 }
 
+/** Creates a Queued task for the client from a validated brief. */
+export async function createProject(actor: Actor, brandId: string, brief: Brief): Promise<ProjectResult> {
+  const cols = await taskColumns();
+  const { essential, optional } = videoBriefProps(cols, brief);
+  const essentials: Props = {
+    [cols.title]: { title: chunkText(brief.projectName) },
+    [cols.client]: { relation: [{ id: brandId }] },
+    ...essential,
+  };
+  return createTaskPage(cols, PROJECT_ICON, essentials, { ...optional, ...requestedByProp(cols, actor) }, briefBlocks(brief));
+}
+
+/** The client's script request, written into the page body (their original stays here even after you edit Script). */
+function scriptBlocks(request: ScriptRequest) {
+  const heading = (text: string) => ({ object: "block", type: "heading_3", heading_3: { rich_text: chunkText(text) } });
+  const paragraph = (rich_text: RichTextRequest[]) => ({ object: "block", type: "paragraph", paragraph: { rich_text } });
+  const bullet = (text: string) => ({ object: "block", type: "bulleted_list_item", bulleted_list_item: { rich_text: chunkText(text) } });
+  return [
+    { object: "block", type: "heading_2", heading_2: { rich_text: chunkText("Script request") } },
+    heading("Add"),
+    ...scriptAdds(request).map(bullet),
+    ...(request.notes ? [heading("Notes"), paragraph(chunkText(request.notes))] : []),
+    heading("Client’s original script"),
+    ...(request.link ? [paragraph(chunkText(request.link, request.link))] : []),
+    ...(request.text ? [paragraph(chunkText(request.text))] : []),
+    paragraph(chunkText("Edit the Script property (or the linked doc) into the final version, then set Script status to Ready for review.")),
+  ];
+}
+
+/** Starts a project with the script step: Script status Queued, video Status left empty until footage arrives. */
+export async function createScriptProject(actor: Actor, brandId: string, request: ScriptRequest): Promise<ProjectResult> {
+  const cols = await taskColumns();
+  const scriptName = cols.col(TASK_PROPS.script);
+  const linkName = cols.col(TASK_PROPS.scriptLink);
+  const statusName = cols.col(TASK_PROPS.scriptStatus);
+  const essentials: Props = {
+    [cols.title]: { title: chunkText(request.projectName) },
+    [cols.client]: { relation: [{ id: brandId }] },
+  };
+  const optional: Props = { ...requestedByProp(cols, actor) };
+  const status = optionValue(cols.type(statusName), SCRIPT_STATUS.queued);
+  if (status) essentials[statusName] = status;
+  if (cols.type(scriptName) === "rich_text" && request.text) optional[scriptName] = { rich_text: chunkText(request.text) };
+  if (cols.type(linkName) === "url" && request.link) optional[linkName] = { url: request.link };
+  else if (cols.type(linkName) === "rich_text" && request.link) optional[linkName] = { rich_text: chunkText(request.link) };
+  return createTaskPage(cols, SCRIPT_ICON, essentials, optional, scriptBlocks(request));
+}
+
+/** Client approves the script. Only allowed while it's Ready for review. */
+export async function approveScript(actor: Actor, taskId: string): Promise<ReviewResult> {
+  const page = await getOwnedTaskPage(actor.brandIds, taskId);
+  if (!page) return { ok: false, error: "We couldn’t find that script." };
+  if (scriptKind(getText(page, TASK_PROPS.scriptStatus)) !== "review") {
+    return { ok: false, error: "This script isn’t waiting for review any more." };
+  }
+  try {
+    await updateTask(page.id, { selects: { [TASK_PROPS.scriptStatus]: SCRIPT_STATUS.approved } });
+  } catch (error) {
+    return reviewError(error, SCRIPT_STATUS.approved);
+  }
+  await addComment(actor.name, "✅ Script approved — thank you!", page.id).catch(() => {});
+  return { ok: true };
+}
+
+/** Client asks for script changes. The request is posted as a comment on the task page. */
+export async function requestScriptChanges(actor: Actor, taskId: string, details: string): Promise<ReviewResult> {
+  const page = await getOwnedTaskPage(actor.brandIds, taskId);
+  if (!page) return { ok: false, error: "We couldn’t find that script." };
+  if (scriptKind(getText(page, TASK_PROPS.scriptStatus)) !== "review") {
+    return { ok: false, error: "This script isn’t waiting for review any more." };
+  }
+  try {
+    await updateTask(page.id, { selects: { [TASK_PROPS.scriptStatus]: SCRIPT_STATUS.changes } });
+  } catch (error) {
+    return reviewError(error, SCRIPT_STATUS.changes);
+  }
+  await addComment(actor.name, `✏️ Script changes requested\n${details}`, page.id).catch((error) =>
+    console.error("Script change comment failed:", error),
+  );
+  return { ok: true };
+}
+
+/**
+ * Second half of a script-first project: the footage and video brief are added to the same
+ * task, which then enters the production queue (Status Queued).
+ */
+export async function addFootage(actor: Actor, taskId: string, brief: Brief): Promise<ReviewResult> {
+  const page = await getOwnedTaskPage(actor.brandIds, taskId);
+  if (!page) return { ok: false, error: "We couldn’t find that project." };
+  if (getText(page, TASK_PROPS.briefData)) return { ok: false, error: "Footage has already been sent for this project." };
+  const cols = await taskColumns();
+  const { essential, optional } = videoBriefProps(cols, brief);
+  const update = (props: Props) =>
+    notion().pages.update({ page_id: page.id, properties: props as Parameters<Client["pages"]["update"]>[0]["properties"] });
+  try {
+    await update({ ...essential, ...optional });
+  } catch (error) {
+    if (!isNotionClientError(error) || error.code !== APIErrorCode.ValidationError) return reviewError(error, NEW_PROJECT_STATUS);
+    console.error("Notion rejected an optional column — saving the footage with essentials only.", error);
+    try {
+      await update(essential);
+    } catch (retryError) {
+      return reviewError(retryError, NEW_PROJECT_STATUS);
+    }
+  }
+  await notion()
+    .blocks.children.append({
+      block_id: page.id,
+      children: briefBlocks(brief) as Parameters<Client["blocks"]["children"]["append"]>[0]["children"],
+    })
+    .catch((error) => console.error("Could not add the brief to the page body:", error));
+  await addComment(actor.name, "🎬 Footage sent — the brief is on this page.", page.id).catch(() => {});
+  return { ok: true };
+}
+
+/** The script for one of this person's projects, for Copy / Download. */
+export async function getScript(brandIds: string[], taskId: string): Promise<{ title: string; text: string; link: string | null } | null> {
+  const page = await getOwnedTaskPage(brandIds, taskId);
+  if (!page) return null;
+  const task = await withFullScript(page, toTask(page));
+  if (!scriptKind(task.scriptStatus)) return null;
+  return { title: task.title, text: task.script, link: task.scriptLink };
+}
+
 export type Project = Task & { brief: Brief | null };
 
 /** Loads one task for the client (only found if its Client relation is this client). */
@@ -759,7 +962,8 @@ export async function getProject(brandIds: string[], taskId: string): Promise<Pr
   const page = await getOwnedTaskPage(brandIds, taskId);
   if (!page) return null;
   const briefJson = getText(page, TASK_PROPS.briefData);
-  return { ...toTask(page), brief: briefJson ? parseBrief(briefJson) : null };
+  const task = await withFullScript(page, toTask(page));
+  return { ...task, brief: briefJson ? parseBrief(briefJson) : null };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { submitProject } from "@/app/actions";
+import { addFootageAction, submitProject, submitScript } from "@/app/actions";
+import {
+  SCRIPT_MAX_LENGTH,
+  SCRIPT_TURNAROUND_LABEL,
+  WRITTEN_HOOKS_MAX,
+  validateScriptRequest,
+  type ScriptErrors,
+  type ScriptField,
+} from "@/lib/script";
 import {
   FORMAT_OPTIONS,
   HOOKS_DEFAULT,
@@ -133,6 +142,72 @@ function ChipGroup({
   );
 }
 
+const SCRIPT_FIELD_ORDER: ScriptField[] = ["projectName", "script", "adds"];
+
+const EMPTY_SCRIPT = { text: "", link: "", hooks: 0, cta: false, notes: "" };
+
+type Kind = "script" | "video";
+
+/** First question when starting a project: begin with a script, or go straight to footage. */
+function StartChoice({ value, onChange }: { value: Kind | null; onChange: (k: Kind) => void }) {
+  const options: { key: Kind; title: string; hint: string; icon: React.ReactNode }[] = [
+    {
+      key: "script",
+      title: "Start with my script",
+      hint: `We add hooks & a CTA · ${SCRIPT_TURNAROUND_LABEL}`,
+      icon: (
+        <path d="M4 15.5l.6-3L13 4.1a1.5 1.5 0 0 1 2.1 0l.8.8a1.5 1.5 0 0 1 0 2.1L7.5 15.4l-3 .6ZM11.5 5.6l2.9 2.9" strokeLinecap="round" strokeLinejoin="round" />
+      ),
+    },
+    {
+      key: "video",
+      title: "Send my footage",
+      hint: "Straight to editing",
+      icon: (
+        <>
+          <rect x="2.75" y="4.25" width="14.5" height="11.5" rx="2.5" />
+          <path d="M8.5 7.75v4.5l3.75-2.25-3.75-2.25Z" strokeLinejoin="round" />
+        </>
+      ),
+    },
+  ];
+  return (
+    <div>
+      <p className="mb-2.5 text-[0.85rem] font-bold text-foreground">How would you like to start?</p>
+      <div role="radiogroup" aria-label="How would you like to start?" className="grid grid-cols-2 gap-2.5">
+        {options.map((o) => {
+          const checked = value === o.key;
+          return (
+            <button
+              key={o.key}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              onClick={() => onChange(o.key)}
+              className={`pressable flex min-h-[6.5rem] flex-col items-start gap-2 rounded-2xl border p-3.5 text-left ${
+                checked ? "border-foreground bg-foreground text-on-ink" : "border-line bg-card text-foreground hover:border-foreground/30"
+              }`}
+            >
+              <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+                {o.icon}
+              </svg>
+              <span>
+                <span className="block text-[0.85rem] font-bold leading-snug">{o.title}</span>
+                <span className={`mt-0.5 block text-[0.7rem] leading-snug ${checked ? "text-on-ink/75" : "text-muted"}`}>{o.hint}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {value === null && (
+        <p className="mt-3 text-[0.75rem] leading-relaxed text-muted">
+          Starting with a script? Once you approve it, you’ll send your footage on the same project.
+        </p>
+      )}
+    </div>
+  );
+}
+
 const EMPTY = {
   projectName: "",
   driveLinks: [""],
@@ -150,11 +225,14 @@ const EMPTY = {
 export function ProjectForm({
   brands = [],
   defaultBrandId = null,
+  attachTo,
 }: {
   /** The person's brands — when there's more than one, the form asks which it's for. */
   brands?: { id: string; name: string }[];
   /** Pre-selected brand (the pill being viewed), if any. */
   defaultBrandId?: string | null;
+  /** Footage for an existing project (after its script was approved): no brand or name to ask. */
+  attachTo?: { id: string; title: string };
 }) {
   const router = useRouter();
   const [brandId, setBrandId] = useState<string | null>(defaultBrandId);
@@ -165,10 +243,14 @@ export function ProjectForm({
     setSeenDefault(defaultBrandId);
     setBrandId(defaultBrandId);
   }
-  const askBrand = brands.length > 1;
+  const askBrand = brands.length > 1 && !attachTo;
   const formRef = useRef<HTMLFormElement>(null);
-  const [open, setOpen] = useState(false);
-  const [values, setValues] = useState(EMPTY);
+  const [open, setOpen] = useState(Boolean(attachTo));
+  const [kind, setKind] = useState<Kind | null>(attachTo ? "video" : null);
+  const [values, setValues] = useState(attachTo ? { ...EMPTY, projectName: attachTo.title } : EMPTY);
+  const [script, setScript] = useState(EMPTY_SCRIPT);
+  const [scriptErrors, setScriptErrors] = useState<ScriptErrors>({});
+  const [submittedKind, setSubmittedKind] = useState<Kind>("video");
   const [errors, setErrors] = useState<BriefErrors>({});
   const [formError, setFormError] = useState("");
   const [submitted, setSubmitted] = useState("");
@@ -194,8 +276,20 @@ export function ProjectForm({
     });
   };
 
-  const focusFirstError = (errs: BriefErrors) => {
-    const first = FIELD_ORDER.find((f) => errs[f]);
+  const setScriptValue = <K extends keyof typeof EMPTY_SCRIPT>(key: K, value: (typeof EMPTY_SCRIPT)[K]) => {
+    setScript((v) => ({ ...v, [key]: value }));
+    const field: ScriptField = key === "hooks" || key === "cta" ? "adds" : key === "text" || key === "link" ? "script" : "projectName";
+    setScriptErrors((e) => {
+      if (!(field in e)) return e;
+      const next = { ...e };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const focusFirstError = (errs: BriefErrors | ScriptErrors) => {
+    const order: string[] = kind === "script" ? SCRIPT_FIELD_ORDER : FIELD_ORDER;
+    const first = order.find((f) => (errs as Record<string, string | undefined>)[f]);
     if (!first) return;
     const el = formRef.current?.querySelector<HTMLElement>(`[data-field="${first}"]`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -208,12 +302,51 @@ export function ProjectForm({
     referenceLinks: values.referenceLinks.map((l) => l.trim()).filter(Boolean),
   });
 
+  const finish = (sentKind: Kind) => {
+    if (attachTo) {
+      router.push("/dashboard#tasks");
+      router.refresh();
+      return;
+    }
+    setSubmitted(values.projectName);
+    setSubmittedKind(sentKind);
+    setCelebrating(true);
+    setValues(EMPTY);
+    setScript(EMPTY_SCRIPT);
+    setErrors({});
+    setScriptErrors({});
+    setKind(null);
+    setOpen(false);
+    router.refresh();
+  };
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError("");
     if (askBrand && !brandId) {
       setBrandError("Choose which brand this is for.");
       formRef.current?.querySelector<HTMLElement>('[data-field="brand"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (kind === "script") {
+      const input = { ...script, projectName: values.projectName, brandId: brandId ?? "" };
+      const { errors: errs } = validateScriptRequest(input);
+      if (Object.keys(errs).length) {
+        setScriptErrors(errs);
+        focusFirstError(errs);
+        return;
+      }
+      startTransition(async () => {
+        const result = await submitScript(input);
+        if (result.errors) {
+          setScriptErrors(result.errors);
+          focusFirstError(result.errors);
+        } else if (result.formError) {
+          setFormError(result.formError);
+        } else if (result.ok) {
+          finish("script");
+        }
+      });
       return;
     }
     const { errors: errs } = validateBrief(payload());
@@ -223,19 +356,14 @@ export function ProjectForm({
       return;
     }
     startTransition(async () => {
-      const result = await submitProject(payload());
+      const result = attachTo ? await addFootageAction(attachTo.id, payload()) : await submitProject(payload());
       if (result.errors) {
         setErrors(result.errors);
         focusFirstError(result.errors);
       } else if (result.formError) {
         setFormError(result.formError);
       } else if (result.ok) {
-        setSubmitted(values.projectName);
-        setCelebrating(true);
-        setValues(EMPTY);
-        setErrors({});
-        setOpen(false);
-        router.refresh();
+        finish("video");
       }
     });
   }
@@ -245,11 +373,20 @@ export function ProjectForm({
       <div className="card p-5 sm:p-6">
         {submitted && (
           <p role="status" className="mb-4 animate-rise rounded-xl bg-yellow/25 px-4 py-3 text-[0.85rem] leading-relaxed text-yellow-ink">
-            <strong>“{submitted}”</strong> was sent to the team. You’ll see it in your tasks as <strong>Queued</strong>.
+            <strong>“{submitted}”</strong> was sent to the team.{" "}
+            {submittedKind === "script" ? (
+              <>
+                You’ll see it in your tasks as <strong>Script queued</strong> — back in {SCRIPT_TURNAROUND_LABEL}.
+              </>
+            ) : (
+              <>
+                You’ll see it in your tasks as <strong>Queued</strong>.
+              </>
+            )}
           </p>
         )}
         <p className="text-[0.9rem] leading-relaxed text-muted">
-          Share your footage and tell us what you’d like made. It goes straight into our production queue.
+          Start with your script and we’ll add hooks and a call to action, or send your footage straight to editing.
         </p>
         <button
           type="button"
@@ -309,6 +446,7 @@ export function ProjectForm({
     { label: "Next week", value: isoDateFromToday(7) },
   ].filter((q) => q.value >= minDate);
 
+  const nameError = kind === "script" ? scriptErrors.projectName : errors.projectName;
   const styleHint = values.style.length >= STYLE_MAX ? `${STYLE_MAX} of ${STYLE_MAX} picked` : `Pick up to ${STYLE_MAX}`;
 
   return (
@@ -322,16 +460,30 @@ export function ProjectForm({
         <p className="text-[0.8rem] text-muted">
           Fields marked <span className="font-bold text-orange">*</span> are required.
         </p>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="-mr-2 -mt-2 min-h-11 shrink-0 rounded-full px-4 text-[0.8rem] font-bold text-muted hover:bg-surface hover:text-foreground"
-        >
-          Cancel
-        </button>
+        {attachTo ? (
+          <Link
+            href="/dashboard"
+            className="-mr-2 -mt-2 inline-flex min-h-11 shrink-0 items-center rounded-full px-4 text-[0.8rem] font-bold text-muted hover:bg-surface hover:text-foreground"
+          >
+            Cancel
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              setKind(null);
+            }}
+            className="-mr-2 -mt-2 min-h-11 shrink-0 rounded-full px-4 text-[0.8rem] font-bold text-muted hover:bg-surface hover:text-foreground"
+          >
+            Cancel
+          </button>
+        )}
       </div>
 
-      {askBrand && (
+      {!attachTo && <StartChoice value={kind} onChange={setKind} />}
+
+      {kind && askBrand && (
         <div data-field="brand">
           <GroupHeader label="Brand" required error={brandError} errorId="err-brand" />
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Brand">
@@ -363,25 +515,36 @@ export function ProjectForm({
         </div>
       )}
 
-      {/* Project name */}
+      {kind && !attachTo && (
       <div data-field="projectName">
         <label htmlFor="projectName" className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3">
           <span className="text-[0.85rem] font-bold text-foreground">
             Project name<span className="ml-0.5 text-orange">*</span>
           </span>
-          <FieldError id="err-projectName" message={errors.projectName} />
+          <FieldError id="err-projectName" message={nameError} />
         </label>
         <input
           id="projectName"
           value={values.projectName}
-          onChange={(e) => set("projectName", e.target.value)}
+          onChange={(e) => {
+            set("projectName", e.target.value);
+            setScriptErrors((er) => (er.projectName ? { ...er, projectName: undefined } : er));
+          }}
           maxLength={200}
           placeholder="e.g. Spring launch video"
-          aria-invalid={Boolean(errors.projectName) || undefined}
-          aria-describedby={errors.projectName ? "err-projectName" : undefined}
-          className={`${inputClass} ${errors.projectName ? "border-orange/70" : "border-line"}`}
+          aria-invalid={Boolean(nameError) || undefined}
+          aria-describedby={nameError ? "err-projectName" : undefined}
+          className={`${inputClass} ${nameError ? "border-orange/70" : "border-line"}`}
         />
       </div>
+      )}
+
+      {kind === "script" && (
+        <ScriptFields value={script} errors={scriptErrors} onChange={setScriptValue} />
+      )}
+
+      {kind === "video" && (
+      <>
 
       {/* Drive link */}
       <div data-field="driveLink">
@@ -560,8 +723,8 @@ export function ProjectForm({
 
       {/* Hooks — a segmented choice beats typing a number */}
       <div data-field="hookCount">
-        <GroupHeader label="Hook variants" hint={`Up to ${HOOKS_MAX}`} error={errors.hookCount} errorId="err-hookCount" />
-        <div role="radiogroup" aria-label="Number of hook variants" className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1">
+        <GroupHeader label="Visual hook variants" hint={`Up to ${HOOKS_MAX}`} error={errors.hookCount} errorId="err-hookCount" />
+        <div role="radiogroup" aria-label="Number of visual hook variants" className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1">
           {Array.from({ length: HOOKS_MAX - HOOKS_MIN + 1 }, (_, i) => HOOKS_MIN + i).map((n) => {
             const checked = values.hookCount === n;
             return (
@@ -591,11 +754,11 @@ export function ProjectForm({
         >
           {values.hookCount > 1 ? (
             <>
-              <strong>Additional charges apply.</strong> Each extra hook variant is billed on top of your project. We’ll
+              <strong>Additional charges apply.</strong> Each extra visual hook (a different opening shot) is billed on top of your project. We’ll
               confirm the cost with you before we start.
             </>
           ) : (
-            "One opening hook is included. Add variants to test different openings (extra cost)."
+            "Different opening shots to test — not words. One is included. Written hooks are added in the script step."
           )}
         </p>
       </div>
@@ -679,25 +842,162 @@ export function ProjectForm({
         />
       </div>
 
-      {formError && (
+      </>
+      )}
+
+      {kind && formError && (
         <p role="alert" className="rounded-xl bg-orange/10 px-4 py-3 text-sm text-orange-ink">
           {formError}
         </p>
       )}
-      {Object.keys(errors).length > 0 && (
+      {Object.values(kind === "script" ? scriptErrors : errors).some(Boolean) && (
         <p role="alert" className="text-center text-[0.8rem] font-bold text-orange-ink">
           Please fix the highlighted fields above.
         </p>
       )}
 
+      {kind && (
       <button
         type="submit"
         disabled={pending}
         className="pressable flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-on-ink hover:bg-primary-ink disabled:cursor-wait disabled:opacity-70"
       >
         {pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-ink/30 border-t-on-ink" aria-hidden />}
-        {pending ? "Sending…" : "Done"}
+        {pending ? "Sending…" : kind === "script" ? "Send script" : attachTo ? "Send footage" : "Done"}
       </button>
+      )}
     </form>
+  );
+}
+
+/** Script step fields: the script (pasted or linked) and what we should add to it. */
+function ScriptFields({
+  value,
+  errors,
+  onChange,
+}: {
+  value: typeof EMPTY_SCRIPT;
+  errors: ScriptErrors;
+  onChange: <K extends keyof typeof EMPTY_SCRIPT>(key: K, value: (typeof EMPTY_SCRIPT)[K]) => void;
+}) {
+  const toggle = (on: boolean) =>
+    `pressable inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-[0.8rem] font-bold ${
+      on
+        ? "border-foreground bg-foreground text-on-ink"
+        : errors.adds
+          ? "border-orange/60 bg-card text-foreground"
+          : "border-line bg-card text-foreground hover:border-foreground/30"
+    }`;
+  const check = (
+    <svg viewBox="0 0 16 16" className="h-3 w-3 animate-pop" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+      <path d="M3.5 8.5l3 3 6-7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+
+  return (
+    <>
+      <div data-field="script">
+        <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3">
+          <label htmlFor="scriptText" className="text-[0.85rem] font-bold text-foreground">
+            Your script<span className="ml-0.5 text-orange">*</span>
+          </label>
+          <FieldError id="err-script" message={errors.script} />
+        </div>
+        <textarea
+          id="scriptText"
+          rows={7}
+          maxLength={SCRIPT_MAX_LENGTH}
+          value={value.text}
+          onChange={(e) => onChange("text", e.target.value)}
+          placeholder="Paste your script here…"
+          aria-invalid={Boolean(errors.script) || undefined}
+          aria-describedby={errors.script ? "err-script" : undefined}
+          className={`w-full resize-y rounded-xl border bg-card px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem] ${
+            errors.script ? "border-orange/70" : "border-line"
+          }`}
+        />
+        <label htmlFor="scriptLink" className="mb-2 mt-3 block text-[0.75rem] font-bold text-muted">
+          Or link to it
+        </label>
+        <input
+          id="scriptLink"
+          type="url"
+          inputMode="url"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={value.link}
+          onChange={(e) => onChange("link", e.target.value)}
+          placeholder="https://docs.google.com/…"
+          className={`${inputClass} ${errors.script ? "border-orange/70" : "border-line"}`}
+        />
+        <p className="mt-2 text-[0.75rem] leading-relaxed text-muted">
+          A Google Doc or a file in your Drive — set it to ‘Anyone with the link can edit’ so we can work in it.
+        </p>
+      </div>
+
+      <div data-field="adds">
+        <GroupHeader label="What should we add?" required hint="Pick at least 1" error={errors.adds} errorId="err-adds" />
+        <div className="flex flex-wrap gap-2" role="group" aria-describedby={errors.adds ? "err-adds" : undefined}>
+          <button type="button" aria-pressed={value.hooks > 0} onClick={() => onChange("hooks", value.hooks > 0 ? 0 : 1)} className={toggle(value.hooks > 0)}>
+            {value.hooks > 0 && check}
+            Written hook{value.hooks > 1 ? "s" : ""}
+          </button>
+          <button type="button" aria-pressed={value.cta} onClick={() => onChange("cta", !value.cta)} className={toggle(value.cta)}>
+            {value.cta && check}
+            Call to action
+          </button>
+        </div>
+        {value.hooks > 0 && (
+          <div className="mt-3 animate-rise">
+            <p className="mb-2 text-[0.75rem] font-bold text-muted">How many hooks?</p>
+            <div role="radiogroup" aria-label="Number of written hooks" className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1">
+              {Array.from({ length: WRITTEN_HOOKS_MAX }, (_, i) => i + 1).map((n) => {
+                const checked = value.hooks === n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    role="radio"
+                    aria-checked={checked}
+                    onClick={() => onChange("hooks", n)}
+                    className={`pressable min-h-11 rounded-xl text-[0.85rem] font-bold ${
+                      checked ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {n === 1 ? "1 hook" : `${n} hooks`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="scriptNotes" className="mb-2.5 block text-[0.85rem] font-bold text-foreground">
+          Notes <span className="ml-1 text-[0.75rem] font-normal text-muted">Optional</span>
+        </label>
+        <textarea
+          id="scriptNotes"
+          rows={3}
+          maxLength={1500}
+          value={value.notes}
+          onChange={(e) => onChange("notes", e.target.value)}
+          placeholder="Tone, audience, the offer for the CTA…"
+          className="w-full resize-y rounded-xl border border-line bg-card px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]"
+        />
+      </div>
+
+      <p className="flex items-center gap-2 rounded-xl bg-surface px-3.5 py-2.5 text-[0.78rem] text-muted">
+        <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+          <circle cx="8" cy="8" r="6.25" />
+          <path d="M8 4.75V8l2.25 1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span>
+          Scripts come back in <strong className="text-foreground">{SCRIPT_TURNAROUND_LABEL}</strong>. Once you approve it, you’ll
+          send your footage on this same project.
+        </span>
+      </p>
+    </>
   );
 }

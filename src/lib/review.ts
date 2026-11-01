@@ -1,5 +1,6 @@
 import type { Task } from "./notion";
 import { statusKind } from "./status";
+import { scriptKind } from "./script";
 
 /** Shared by the review card (browser) and the server action. */
 export const TWEAK_AREAS = ["Pacing", "Captions", "Music", "Colour", "Hook", "Cut something", "Other"];
@@ -35,4 +36,35 @@ export function reviewStage(task: Task): ReviewStage | null {
   if (kind === "tweaks") return "tweaks";
   if (kind === "done" && task.finalVideo && !task.downloadedOn) return "approved";
   return null;
+}
+
+/** A script waiting for the client to approve or ask for changes. */
+export function scriptInReview(task: Task): boolean {
+  return !task.done && !task.archived && scriptKind(task.scriptStatus) === "review";
+}
+
+/** Script approved, footage not sent yet — the project's next step is the client's. */
+export function awaitingFootage(task: Task): boolean {
+  return !task.done && !task.archived && scriptKind(task.scriptStatus) === "approved" && !task.hasBrief;
+}
+
+/** Everything that belongs in the "Ready for your review" section at the top of the dashboard. */
+export function needsClient(task: Task): boolean {
+  return Boolean(reviewStage(task)) || scriptInReview(task) || awaitingFootage(task);
+}
+
+/**
+ * The project's journey, for the small progress line on cards:
+ * Script (only if the project started with one) → Footage → Editing → Review → Done.
+ */
+export function projectSteps(task: Task): { steps: string[]; current: number } | null {
+  const script = scriptKind(task.scriptStatus);
+  if (!script && !task.hasBrief) return null;
+  const steps = [...(script ? ["Script"] : []), "Footage", "Editing", "Review", "Done"];
+  let label = "Editing";
+  if (task.done) label = "Done";
+  else if (script && script !== "approved" && !task.hasBrief) label = "Script";
+  else if (!task.hasBrief) label = "Footage";
+  else if (statusKind(task.status) === "review") label = "Review";
+  return { steps, current: steps.indexOf(label) };
 }

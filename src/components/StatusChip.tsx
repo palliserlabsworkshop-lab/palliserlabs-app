@@ -11,10 +11,23 @@ export const STATUS_STYLES: Record<StatusKind, { chip: string; rail: string; lab
   other: { chip: "bg-surface text-muted", rail: "bg-line" },
 };
 
-export function StatusChip({ status, done, size = "sm" }: { status: string; done?: boolean; size?: "sm" | "md" }) {
-  const kind = statusKind(status, done);
+export function StatusChip({
+  status,
+  done,
+  size = "sm",
+  kind: kindOverride,
+  label,
+}: {
+  status: string;
+  done?: boolean;
+  size?: "sm" | "md";
+  /** Overrides for stages that aren't the video Status (e.g. the script step). */
+  kind?: StatusKind;
+  label?: string;
+}) {
+  const kind = kindOverride ?? statusKind(status, done);
   const style = STATUS_STYLES[kind];
-  const text = style.label ?? status;
+  const text = label ?? style.label ?? status;
   return (
     <span
       className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-bold ${style.chip} ${

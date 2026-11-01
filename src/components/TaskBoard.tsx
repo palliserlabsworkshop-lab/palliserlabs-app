@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { Task } from "@/lib/notion";
 import { formatDueDate, isOverdue } from "@/lib/format";
-import { statusKind } from "@/lib/status";
+import { taskDisplay } from "@/lib/stage";
+import { SCRIPT_TURNAROUND_LABEL } from "@/lib/script";
 import { STATUS_STYLES, StatusChip } from "./StatusChip";
+import { ProjectSteps } from "./ProjectSteps";
 
 function CalendarIcon() {
   return (
@@ -17,9 +19,11 @@ const linkPill =
   "pressable inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-[0.7rem] font-bold text-foreground hover:bg-foreground hover:text-on-ink";
 
 function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
-  const kind = statusKind(task.status, task.done);
+  const { kind, label } = taskDisplay(task);
   const overdue = !task.done && task.dueDate !== null && isOverdue(task.dueDate);
   const showDownload = task.done && Boolean(task.finalVideo);
+  const inScriptStep = Boolean(label) && !task.hasBrief;
+  const hasProject = task.hasBrief || Boolean(task.scriptStatus);
 
   return (
     <li className="card relative overflow-hidden py-3.5 pl-4 pr-3.5 sm:py-4 sm:pl-5 sm:pr-4">
@@ -34,8 +38,10 @@ function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
         {task.title}
       </p>
       <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        {!task.done && <StatusChip status={task.status} />}
-        {task.dueDate ? (
+        {!task.done && <StatusChip status={task.status} kind={kind} label={label} />}
+        {inScriptStep && kind === "queued" ? (
+          <span className="text-[0.72rem] text-muted">Back in {SCRIPT_TURNAROUND_LABEL}</span>
+        ) : inScriptStep ? null : task.dueDate ? (
           <span
             className={`inline-flex items-center gap-1 text-[0.72rem] ${overdue ? "font-bold text-orange-ink" : "text-muted"}`}
           >
@@ -50,7 +56,12 @@ function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
           <span className="text-[0.72rem] font-bold text-success">✓ Downloaded {formatDueDate(task.downloadedOn)}</span>
         )}
       </div>
-      {(task.hasBrief || showDownload) && (
+      {!task.done && hasProject && (
+        <div className="mt-3">
+          <ProjectSteps task={task} />
+        </div>
+      )}
+      {(hasProject || showDownload) && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {showDownload && (
             // Plain <a>: the route records the download, so it must never be prefetched.
@@ -58,9 +69,9 @@ function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
               Download
             </a>
           )}
-          {task.hasBrief && (
+          {hasProject && (
             <Link href={`/dashboard/projects/${task.id}`} prefetch={false} className={linkPill}>
-              View brief
+              {task.hasBrief && task.scriptStatus ? "View project" : task.hasBrief ? "View brief" : "View script"}
               <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -113,7 +124,7 @@ export function TaskSummary({ tasks }: { tasks: Task[] }) {
   if (!visible.length) return null;
   const counts = { queued: 0, in_progress: 0, review: 0, done: 0 };
   for (const t of visible) {
-    const k = statusKind(t.status, t.done);
+    const k = taskDisplay(t).kind;
     if (k === "queued") counts.queued++;
     else if (k === "review") counts.review++;
     else if (k === "done") counts.done++;

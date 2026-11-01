@@ -7,8 +7,19 @@ import { getViewer } from "@/lib/viewer";
 import { briefRows, isHttpUrl } from "@/lib/brief";
 import { formatDueDate } from "@/lib/format";
 import { StatusChip } from "@/components/StatusChip";
+import { ProjectSteps } from "@/components/ProjectSteps";
+import { ScriptText, ScriptTools } from "@/components/ScriptTools";
+import { awaitingFootage } from "@/lib/review";
+import { scriptKind } from "@/lib/script";
+import { taskDisplay } from "@/lib/stage";
 
-export const metadata: Metadata = { title: "Project brief — Palliser Labs" };
+export const metadata: Metadata = { title: "Project — Palliser Labs" };
+
+const SCRIPT_NOTE: Record<string, string> = {
+  queued: "We’re writing your hooks and CTA now. You’ll review the script on your dashboard.",
+  changes: "We’re making your changes. The updated script will appear on your dashboard.",
+  review: "Your script is ready — approve it or ask for changes on your dashboard.",
+};
 
 async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewer();
@@ -18,6 +29,10 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
   // Only finds the task if its Client relation is the signed-in client.
   const project = await getProject(viewer.brandIds, id);
   if (!project) notFound();
+  const script = scriptKind(project.scriptStatus);
+  const display = taskDisplay(project);
+  // The client sees the finished script once it's ready; before that, a note on where it's at.
+  const showScript = script === "review" || script === "approved";
 
   return (
     <article>
@@ -25,7 +40,7 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
         {project.title}
       </h1>
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <StatusChip status={project.status} done={project.done} size="md" />
+        <StatusChip status={project.status} done={project.done} size="md" kind={display.kind} label={display.label} />
         {project.dueDate && (
           <span className="rounded-full border border-line bg-card px-3 py-1 text-[0.75rem] text-muted">
             Due {formatDueDate(project.dueDate)}
@@ -33,8 +48,49 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
         )}
       </div>
 
+      {!project.done && (
+        <div className="mt-6">
+          <ProjectSteps task={project} size="md" />
+        </div>
+      )}
+
+      {script && (
+        <section className="mt-10" aria-labelledby="script-heading">
+          <h2 id="script-heading" className="mb-3 px-1 font-display text-[1.25rem] font-medium tracking-[-0.01em]">
+            Script
+          </h2>
+          <div className="card space-y-3 p-4 sm:p-5">
+            {showScript ? (
+              <>
+                {project.script ? (
+                  <ScriptText text={project.script} tall />
+                ) : (
+                  <p className="text-[0.85rem] text-muted">Your script is in the linked document.</p>
+                )}
+                <ScriptTools taskId={project.id} text={project.script} link={project.scriptLink} />
+              </>
+            ) : (
+              <p className="text-[0.85rem] leading-relaxed text-muted">{SCRIPT_NOTE[script]}</p>
+            )}
+            {awaitingFootage(project) && (
+              <Link
+                href={`/dashboard/projects/${project.id}/footage`}
+                prefetch={false}
+                className="pressable flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.9rem] font-bold text-on-ink hover:bg-primary-ink"
+              >
+                Next: send your footage →
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
       {project.brief ? (
-        <dl className="card mt-10 divide-y divide-line overflow-hidden">
+        <>
+        {script && (
+          <h2 className="mb-3 mt-10 px-1 font-display text-[1.25rem] font-medium tracking-[-0.01em]">Video brief</h2>
+        )}
+        <dl className={`card divide-y divide-line overflow-hidden ${script ? "" : "mt-10"}`}>
           {briefRows(project.brief).map((row) => (
             <div key={row.label} className="px-4 py-4 sm:grid sm:grid-cols-[10rem_1fr] sm:gap-6 sm:px-5">
               <dt className="text-[0.75rem] font-bold uppercase tracking-wide text-muted">{row.label}</dt>
@@ -70,7 +126,8 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
             </div>
           ))}
         </dl>
-      ) : (
+        </>
+      ) : script ? null : (
         <p className="mt-10 rounded-2xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
           This task doesn’t have a project brief.
         </p>

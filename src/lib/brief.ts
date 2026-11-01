@@ -226,8 +226,8 @@ export function briefRows(brief: Brief): { label: string; values: string[]; link
     { label: "Purpose", values: labelsFor(brief.purpose, PURPOSE_OPTIONS) },
     { label: "Style / tone", values: labelsFor(brief.style, STYLE_OPTIONS) },
     {
-      label: "Hooks",
-      values: brief.hookCount ? [brief.hookCount > 1 ? `${brief.hookCount} hook variants` : "1 hook"] : [],
+      label: "Visual hooks",
+      values: brief.hookCount ? [brief.hookCount > 1 ? `${brief.hookCount} visual hook variants` : "1 visual hook"] : [],
     },
     { label: "Platform", values: labelsFor(brief.platform, PLATFORM_OPTIONS) },
     { label: "Reference links", values: brief.referenceLinks, links: true },

@@ -28,6 +28,17 @@ export const TASK_PROPS = {
   platform: "Platform", // Multi-select — target platforms, as display labels
   code: "ID", // Unique ID (prefix PL) — e.g. PL-12, used to match Drive uploads to tasks
   requestedBy: "Requested by", // Relation to People (or Text) — who submitted it from the portal
+  scriptStatus: "Script status", // Select — Queued / Ready for review / Changes requested / Approved (empty = no script step)
+  script: "Script", // Text — starts as the client's script; edit it into the final script
+  scriptLink: "Script Link", // URL — the client's Google Doc/Drive link, or your final Google Doc
+} as const;
+
+/** Script status options (Select on the Tasks DB). The video keeps using Status. */
+export const SCRIPT_STATUS = {
+  queued: "Queued",
+  review: "Ready for review",
+  changes: "Changes requested",
+  approved: "Approved",
 } as const;
 
 /** People database (env PEOPLE_DB_ID) — everyone who signs in, each linked to one or more brands. */

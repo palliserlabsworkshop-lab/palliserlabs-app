@@ -2,7 +2,17 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { approveVideo, authenticatePerson, createProject, requestTweaks } from "@/lib/notion";
+import {
+  addFootage,
+  approveScript,
+  approveVideo,
+  authenticatePerson,
+  createProject,
+  createScriptProject,
+  requestScriptChanges,
+  requestTweaks,
+} from "@/lib/notion";
+import { validateScriptRequest, type ScriptErrors } from "@/lib/script";
 import { canUseBrand } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { TWEAK_AREAS } from "@/lib/review";
@@ -102,4 +112,49 @@ export async function requestTweaksAction(
   const timestamp = typeof input.timestamp === "string" ? input.timestamp.trim().slice(0, 40) : "";
   if (!details) return { error: "Tell us what you’d like changed." };
   return requestTweaks(viewer, taskId, { areas, details, timestamp });
+}
+
+export type ScriptState = { ok?: boolean; errors?: ScriptErrors; formError?: string };
+
+/** Starts a project with the script step. Same brand check as submitProject. */
+export async function submitScript(input: Record<string, unknown>): Promise<ScriptState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  const brandId = typeof input.brandId === "string" && input.brandId ? input.brandId : viewer.brandIds[0];
+  if (!canUseBrand(viewer.brandIds, brandId)) {
+    return { formError: "Please choose which brand this project is for." };
+  }
+  const { request, errors } = validateScriptRequest(input);
+  if (Object.keys(errors).length) return { errors };
+  try {
+    await createScriptProject(viewer, brandId, request);
+  } catch (error) {
+    console.error("Failed to create script project:", error);
+    return { formError: "We couldn’t send your script. Please try again in a moment." };
+  }
+  return { ok: true };
+}
+
+export async function approveScriptAction(taskId: string): Promise<ReviewState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  return approveScript(viewer, taskId);
+}
+
+export async function requestScriptChangesAction(taskId: string, details: unknown): Promise<ReviewState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  const text = typeof details === "string" ? details.trim().slice(0, 1500) : "";
+  if (!text) return { error: "Tell us what you’d like changed." };
+  return requestScriptChanges(viewer, taskId, text);
+}
+
+/** Adds footage + the video brief to a project that started with a script. Ownership is checked in the Notion layer. */
+export async function addFootageAction(taskId: string, input: Record<string, unknown>): Promise<ProjectState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  const { brief, errors } = validateBrief(input, isoDateFromToday(0));
+  if (Object.keys(errors).length) return { errors };
+  const result = await addFootage(viewer, taskId, brief);
+  return result.ok ? { ok: true } : { formError: result.error };
 }

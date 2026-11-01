@@ -4,9 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { approveVideoAction, requestTweaksAction } from "@/app/actions";
 import type { Task } from "@/lib/notion";
-import { driveInfo, reviewStage, TWEAK_AREAS, type ReviewStage as Stage } from "@/lib/review";
+import { driveInfo, reviewStage, scriptInReview, awaitingFootage, TWEAK_AREAS, type ReviewStage as Stage } from "@/lib/review";
+import { ScriptCard } from "./ScriptCard";
 import { formatDueDate } from "@/lib/format";
-import { Comments } from "./Comments";
+import { FeedbackThread, Tick } from "./ReviewParts";
 
 
 /** SF Symbols–style play glyph. Its triangle centroid sits on the circle's centre, so it reads as centred. */
@@ -85,62 +86,6 @@ function Player({ link, taskId }: { link: string; taskId: string }) {
         </span>
       )}
     </a>
-  );
-}
-
-function Tick({ className = "h-[22px] w-[22px]" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={`${className} animate-pop`} fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="11" fill="currentColor" fillOpacity="0.18" />
-      <path
-        d="M7 12.5l3.2 3.2L17 8.8"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeDasharray="16"
-        className="animate-draw [--dash:16]"
-      />
-    </svg>
-  );
-}
-
-function FeedbackThread({ taskId }: { taskId: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="border-t border-line">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="flex min-h-12 w-full items-center justify-between px-5 text-[0.8rem] font-bold text-foreground transition-colors hover:bg-surface/60"
-      >
-        Feedback on this video
-        <svg
-          viewBox="0 0 16 16"
-          className={`h-3.5 w-3.5 text-muted transition-transform duration-300 ${open ? "rotate-180" : ""}`}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden
-        >
-          <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open && (
-        <div className="animate-rise border-t border-line">
-          <Comments
-            bare
-            loadOnMount
-            initial={[]}
-            endpoint={`/api/tasks/${taskId}/comments`}
-            emptyTitle="No feedback on this video yet."
-            emptyHint="Anything you post here goes straight to your editor."
-            placeholder="Comment on this video…"
-          />
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -399,13 +344,19 @@ function ReviewCard({ task, brandName }: { task: Task; brandName?: string }) {
   );
 }
 
-/** Top-of-dashboard section: videos to review, tweaks underway, and approved cuts to download. */
+/** Top-of-dashboard section: scripts and videos to review, tweaks underway, approved cuts, and scripts waiting on footage. */
 export function ReviewSection({ tasks, brandNames }: { tasks: Task[]; brandNames?: Record<string, string> }) {
   return (
     <div className="space-y-4">
-      {tasks.map((t) => (
-        <ReviewCard key={t.id} task={t} brandName={t.brandId ? brandNames?.[t.brandId] : undefined} />
-      ))}
+      {tasks.map((t) => {
+        const brandName = t.brandId ? brandNames?.[t.brandId] : undefined;
+        // A project in its script step shows the script; otherwise the video.
+        return !reviewStage(t) && (scriptInReview(t) || awaitingFootage(t)) ? (
+          <ScriptCard key={t.id} task={t} brandName={brandName} />
+        ) : (
+          <ReviewCard key={t.id} task={t} brandName={brandName} />
+        );
+      })}
     </div>
   );
 }

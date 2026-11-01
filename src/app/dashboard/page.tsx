@@ -9,7 +9,7 @@ import { FloatingNav } from "@/components/FloatingNav";
 import { ReviewSection } from "@/components/ReviewSection";
 import { BrandPills, BrandScopeProvider, ScopedFiles, ScopedProjectForm, ScopedTasks } from "@/components/BrandScope";
 import { scopeBrands } from "@/lib/scope";
-import { reviewStage } from "@/lib/review";
+import { awaitingFootage, needsClient, reviewStage, scriptInReview } from "@/lib/review";
 import { getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
 import { getViewer } from "@/lib/viewer";
 
@@ -69,18 +69,20 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
   ]);
 
 
-  // Videos waiting on the client (or being tweaked / ready to download) get their own section up top,
+  // Scripts and videos waiting on the client (or being tweaked / ready to download / waiting on
+  // footage after an approved script) get their own section up top,
   // across every brand so nothing waiting is missed. The board shows everything else, so nothing
   // appears twice. Tasks and documents for all brands are sent once and filtered in the browser
   // when a brand pill is tapped (instant), always within the viewer's own brands.
-  const reviewTasks = tasks.filter((t) => reviewStage(t));
-  const boardTasks = tasks.filter((t) => !reviewStage(t));
-  const toReview = reviewTasks.filter((t) => reviewStage(t) === "review").length;
+  const reviewTasks = tasks.filter(needsClient);
+  const boardTasks = tasks.filter((t) => !needsClient(t));
+  const toReview = reviewTasks.filter((t) => reviewStage(t) === "review" || scriptInReview(t)).length;
+  const footageDue = reviewTasks.filter((t) => !reviewStage(t) && awaitingFootage(t)).length;
 
   return (
     <BrandScopeProvider brands={pillBrands} initial={activeBrand}>
       <AutoRefresh />
-      <FloatingNav showReview reviewCount={toReview} />
+      <FloatingNav showReview reviewCount={toReview + footageDue} />
       <section className="animate-rise">
         <p className="text-[0.95rem] text-muted">Welcome back,</p>
         <h1 className="mt-1 break-words font-display text-[2.5rem] font-medium leading-[1.04] tracking-[-0.03em] sm:text-[3.4rem]">
@@ -99,14 +101,16 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
 
       <Section
         id="review"
-        title={toReview ? "Ready for your review" : "Your videos"}
+        title={toReview ? "Ready for your review" : footageDue ? "Waiting on you" : "Your videos"}
         delay={60}
         subtitle={
           toReview
-            ? "Watch it, then approve or tell us what to change."
-            : reviewTasks.length
-              ? "Tweaks underway and finished cuts ready to download."
-              : undefined
+            ? "Take a look, then approve or tell us what to change."
+            : footageDue
+              ? "Your script is approved — send your footage when you’re ready."
+              : reviewTasks.length
+                ? "Tweaks underway and finished cuts ready to download."
+                : undefined
         }
       >
         {reviewTasks.length ? (
@@ -120,8 +124,8 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
               </svg>
             </span>
             <p className="text-[0.85rem] leading-relaxed text-muted">
-              <strong className="text-foreground">Nothing to review right now.</strong> When an edit is ready, it’ll
-              appear here for you to watch, approve or request changes.
+              <strong className="text-foreground">Nothing to review right now.</strong> When a script or edit is ready,
+              it’ll appear here for you to approve or request changes.
             </p>
           </div>
         )}
