@@ -53,7 +53,7 @@ function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
           !task.done && <span className="text-[0.72rem] text-muted">No due date</span>
         )}
         {task.downloadedOn && (
-          <span className="text-[0.72rem] font-semibold text-success">✓ Downloaded {formatDueDate(task.downloadedOn)}</span>
+          <span className="text-[0.72rem] font-semibold text-success-ink">✓ Downloaded {formatDueDate(task.downloadedOn)}</span>
         )}
       </div>
       {!task.done && hasProject && (

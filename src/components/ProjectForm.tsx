@@ -400,7 +400,7 @@ export function ProjectForm({
           }}
           className={`mt-4 grid h-12 w-full place-items-center rounded-full px-7 text-[0.9rem] font-semibold text-on-ink transition-[background-color,box-shadow,transform] duration-500 ease-[var(--ease-out-soft)] active:scale-[0.96] active:duration-100 sm:w-auto ${
             celebrating
-              ? "bg-success shadow-[0_8px_24px_-8px_rgb(21_128_61/0.55)]"
+              ? "bg-success shadow-[0_8px_24px_-8px_rgb(34_160_82/0.55)]"
               : "bg-foreground hover:bg-primary-ink"
           }`}
         >

@@ -14,7 +14,8 @@
   /* Supporting brand colours (from the Palliser Labs palette) */
   --brand-yellow: #febd59;       /* Also means "Queued" */
   --brand-orange: #ff914c;       /* Warnings — overdue, form errors; required-field asterisks */
-  --brand-success: #15803d;      /* Done / approved, and success flashes — 5.0:1 with white text */
+  --brand-success: #22a052;      /* Done / approved: bars, dots, success buttons — fresh, not neon */
+  --brand-success-ink: #177a3f;  /* Green text on light green tints — 4.9:1 */
   --brand-card: #ffffff;         /* Cards and panels */
   --brand-muted: #5f5f6b;        /* Secondary text — 6.3:1 on white */
   --brand-surface: #f1f1f4;      /* Subtle fills inside cards */
@@ -47,6 +48,7 @@
   --brand-yellow-ink: #ffd08a;
   --brand-orange-ink: #ffab7a;
   --brand-success: #34c759;
+  --brand-success-ink: #5ad482;
   --brand-on-ink: #0f0f11;
   --brand-tile: #1c1c1f;
   --brand-thumb: #45454c;
@@ -65,6 +67,8 @@
     --brand-yellow-ink: #ffd08a;
     --brand-orange-ink: #ffab7a;
     --brand-success: #34c759;
+    --brand-success-ink: #5ad482;
+  --brand-success-ink: #5ad482;
     --brand-on-ink: #0f0f11;
     --brand-tile: #1c1c1f;
     --brand-thumb: #45454c;
@@ -83,6 +87,7 @@
   --color-muted: var(--brand-muted);
   --color-card: var(--brand-card);
   --color-success: var(--brand-success);
+  --color-success-ink: var(--brand-success-ink);
   --color-on-ink: var(--brand-on-ink);
   --color-thumb: var(--brand-thumb);
   --color-primary-ink: var(--brand-primary-ink);

@@ -9,7 +9,7 @@ export const STATUS_STYLES: Record<StatusKind, { chip: string; rail: string; lab
   in_progress: { chip: "bg-accent/15 text-accent-ink", rail: "bg-accent", label: "In Progress" },
   review: { chip: "bg-orange/15 text-orange-ink", rail: "bg-orange", label: "Ready for review" },
   tweaks: { chip: "bg-accent/15 text-accent-ink", rail: "bg-accent", label: "Tweaks in progress" },
-  done: { chip: "bg-success/10 text-success", rail: "bg-success", label: "Done" },
+  done: { chip: "bg-success/10 text-success-ink", rail: "bg-success", label: "Done" },
   archived: { chip: "bg-surface text-muted", rail: "bg-line", label: "Archived" },
   other: { chip: "bg-surface text-muted", rail: "bg-line" },
 };
