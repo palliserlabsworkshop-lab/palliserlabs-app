@@ -25,6 +25,7 @@ import {
   FILE_PROPS,
   HIDE_DONE_AFTER_DAYS,
   NEW_PROJECT_STATUS,
+  AWAITING_FOOTAGE_STATUS,
   SCRIPT_STAGE_STATUS,
   SCRIPT_STATUS,
   TASK_PROPS,
@@ -891,7 +892,10 @@ export async function approveScript(actor: Actor, taskId: string): Promise<Revie
     return { ok: false, error: "This script isn’t waiting for review any more." };
   }
   try {
-    await updateTask(page.id, { selects: { [TASK_PROPS.scriptStatus]: SCRIPT_STATUS.approved } });
+    // Approved script → it becomes a video project, waiting on the client's footage.
+    await updateTask(page.id, {
+      selects: { [TASK_PROPS.scriptStatus]: SCRIPT_STATUS.approved, [TASK_PROPS.status]: AWAITING_FOOTAGE_STATUS },
+    });
   } catch (error) {
     return reviewError(error, SCRIPT_STATUS.approved);
   }

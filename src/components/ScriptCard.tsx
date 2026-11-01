@@ -127,7 +127,6 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
               <path d="M6 3l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </Link>
-          <p className="text-center text-[0.75rem] text-muted">Only needed the script? Message us and we’ll close it off.</p>
         </div>
       </article>
     );

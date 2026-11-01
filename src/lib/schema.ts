@@ -70,6 +70,8 @@ export const HIDE_DONE_AFTER_DAYS = 30;
 export const NEW_PROJECT_STATUS = "Queued";
 /** Status for a project still in its script step (no footage yet), so it shows in your pipeline. */
 export const SCRIPT_STAGE_STATUS = "Script";
+/** Status once the script is approved — it's now a video project waiting on the client's footage. */
+export const AWAITING_FOOTAGE_STATUS = "Awaiting footage";
 
 export const FILE_PROPS = {
   name: "File name",
