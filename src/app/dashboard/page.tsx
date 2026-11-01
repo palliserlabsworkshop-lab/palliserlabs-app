@@ -62,7 +62,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
   const [tasks, files, comments] = await Promise.all([
     getTasks(viewer.brandIds),
     getFiles(viewer.brandIds),
-    getComments(viewer.messagesPageId, viewer.name).catch((error): PortalComment[] | null => {
+    getComments(viewer.id, viewer.name).catch((error): PortalComment[] | null => {
       console.error("Failed to load comments:", error);
       return null;
     }),
@@ -89,9 +89,9 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
         {multi ? (
           <BrandPills />
         ) : (
-          (single?.company || (viewer.kind === "person" && single?.name)) && (
+          single && (
             <p className="mt-4 inline-flex items-center rounded-full border border-line bg-card px-3.5 py-1.5 text-[0.8rem] font-bold text-foreground">
-              {single.company || single.name}
+              {single.name}
             </p>
           )
         )}

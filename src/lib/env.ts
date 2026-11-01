@@ -30,10 +30,8 @@ export const env = {
   get filesDbId() {
     return normalizeNotionId(required("FILES_DB_ID"));
   },
-  /** Optional: the People database. Without it, only client-row logins exist. */
-  get peopleDbId(): string | null {
-    const raw = process.env.PEOPLE_DB_ID;
-    return raw ? normalizeNotionId(raw) : null;
+  get peopleDbId() {
+    return normalizeNotionId(required("PEOPLE_DB_ID"));
   },
   get sessionSecret() {
     const secret = required("SESSION_SECRET");

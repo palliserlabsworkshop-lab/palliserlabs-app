@@ -1,6 +1,6 @@
 # Palliser Labs — Client Portal
 
-A mobile-first client portal built with Next.js (App Router), TypeScript and Tailwind CSS. Notion is the backend. Clients sign in with their email and a 4-digit App Password. They see only their own tasks, files and comments.
+A mobile-first client portal built with Next.js (App Router), TypeScript and Tailwind CSS. Notion is the backend. People sign in with their email and a 4-digit App Password and see only the brands they're linked to.
 
 ## Setup
 
@@ -13,7 +13,9 @@ npm run dev
 | Variable | What it is |
 | --- | --- |
 | `NOTION_TOKEN` | Your Notion internal integration secret |
-| `CLIENTS_DB_ID` / `TASKS_DB_ID` / `FILES_DB_ID` | The database URL or its bare 32-character ID (both work) |
+| `CLIENTS_DB_ID` | The **Brands** database (URL or bare 32-character ID) |
+| `PEOPLE_DB_ID` | The **People** database |
+| `TASKS_DB_ID` / `FILES_DB_ID` | The Tasks / Deliverables and Documents databases |
 | `SESSION_SECRET` | A random string of at least 32 characters (`openssl rand -base64 32`) that signs login cookies |
 
 `.env.local` is git-ignored. No secret appears in the source code.
@@ -23,9 +25,10 @@ npm run dev
 1. **Share each database with the integration.** Open each of the three databases, then go to **⋯ → Connections** and add your integration.
 2. **Turn on the comment capabilities.** Go to notion.so/profile/integrations, open your integration, then **Capabilities**. Enable *Read content*, *Insert content*, *Read comments* and *Insert comments*. Without the comment capabilities, the Comments section shows "unavailable".
 3. **Use these property names**, or change them in `src/lib/schema.ts`:
-   - Clients: `Name`, `Email`, `Company`, `Status`, `App Password`
-   - Tasks: `Task`, `Status`, `Due date`, `Client` (a relation to Clients), plus `Video Link` (URL) and `Brief Data` (Text) for portal projects, and `Final Video` (URL), `Revision round` (Number), `Approved on` (Date), `Downloaded on` (Date) for reviews. `Status` needs `Queued`, `Ready for review`, `Tweaks requested`, `Approved` and `Archived` options.
-   - Files: `File name`, `File / URL`, `Type`, `Client` (a relation to Clients)
+   - People: `Name`, `Email`, `App Password`, `Status`, `Brands` (a relation to Brands), `Personal brand` (Checkbox)
+   - Brands: `Name`, `Type` (Business / Personal brand), `Status`
+   - Tasks: `Task`, `Status`, `Due date`, `Brand` (or `Client`, a relation to Brands), plus `Video Link` (URL) and `Brief Data` (Text) for portal projects, and `Final Video` (URL), `Revision round` (Number), `Approved on` (Date), `Downloaded on` (Date) for reviews. `Status` needs `Queued`, `Ready for review`, `Tweaks requested`, `Approved` and `Archived` options.
+   - Files: `File name`, `File / URL`, `Type`, `Brand` (or `Client`, a relation to Brands)
 
 The app reads each database's schema at runtime, so property types are flexible:
 - `Email` can be an Email or Text property.
@@ -36,10 +39,10 @@ The app reads each database's schema at runtime, so property types are flexible:
 
 ## How it works
 
-- **Login** (`src/app/actions.ts`): the email and PIN are checked on the server against the Clients DB using a timing-safe comparison. On success, the server sets an HttpOnly signed cookie that holds only the client's Notion page ID. Clients whose Status is Inactive, Archived, Disabled or Former can't sign in.
-- **Data isolation** (`src/lib/notion.ts`): every Tasks and Files query is filtered server-side by `Client` relation *contains* the page ID taken from the signed cookie. Nothing from the browser is trusted. Client data is never cached.
+- **Login** (`src/app/actions.ts`): the email and PIN are checked on the server against the People database using a timing-safe comparison. On success, the server sets an HttpOnly signed cookie that holds only the person's Notion page ID. People (or brands) whose Status is Inactive, Archived, Disabled or Former are switched off.
+- **Data isolation** (`src/lib/viewer.ts`, `src/lib/notion.ts`): on every request the person and their linked brands are re-read from Notion. Every Tasks and Files query is then filtered server-side to rows linked to those brands. Nothing from the browser is trusted, and no data is cached.
 - **Task columns**: *Done* goes to **Completed**. *Queued* and *In progress* go to **In Progress**, with a yellow **Queued** or blue **In Progress** chip. Status colours: yellow = Queued, blue = In Progress, purple = Done.
-- **New project form**: clients submit a Google Drive link, a "needed by" date and a brief (format, purpose, style, 1–3 hook variants, platform, references, notes). This creates a **Queued** row in the Tasks DB linked to the client, with the date in `Due date`. The earliest date allowed is set by `TURNAROUND_HOURS` (24) in `src/lib/brief.ts`.
+- **New project form**: clients submit a Google Drive link, a "needed by" date and a brief (format, purpose, style, 1–3 hook variants, platform, references, notes). This creates a **Queued** row in the Tasks DB linked to the chosen brand (and to the person in `Requested by`), with the date in `Due date`. The earliest date allowed is set by `TURNAROUND_HOURS` (24) in `src/lib/brief.ts`.
   - The answers are saved in `Brief Data` as JSON option keys (e.g. `talking_head`), so the labels in `src/lib/brief.ts` can change without breaking old data.
   - A readable copy of the brief is written into the Notion page body for the editor.
   - Clients can open each project's brief from its task card in the app.
@@ -59,17 +62,14 @@ The app reads each database's schema at runtime, so property types are flexible:
   - When a video is archived, its file moves to `Final edits/Archive`.
   - The check runs in the background whenever a client opens their dashboard (at most once a minute per server), and also daily. You can trigger it manually with `GET /api/cron/drive-sync` and `Authorization: Bearer <CRON_SECRET>`.
   - It needs `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and `DRIVE_FINAL_EDITS_FOLDER_ID`. Without them it does nothing.
-- **People and Brands (optional)**: set `PEOPLE_DB_ID` to turn this on. It is for people who share businesses, e.g. Liam and Jack sharing Natty, each with a personal brand.
-  - Each row in the Clients database is a **brand**. Each row in the People database (`Name`, `Email`, `App Password`, `Status`, `Brands`) is a **login** linked to one or more brands.
-  - People sign in with their own email and code. People logins are checked first, then client-row logins.
-  - **Personal brand** tick box (Checkbox on People): when ticked, the app creates "<Name> – Personal" in Brands (Type: Personal brand) and links it the first time that person signs in. Unticking hides it from the app but keeps it in Notion. In the app it is labelled **Personal**.
-  - Brand pills (*All · Natty · … · Personal*) filter Tasks and Documents instantly in the browser. The server sends only the viewer's own brands' data. **Ready for your review** always shows every brand, with each card labelled.
-  - New project asks which brand it's for. Choosing a brand outside the person's own is rejected on the server.
-  - Each person has one Messages thread, on their People row, covering all their brands. Per-video feedback on shared brands shows who wrote each comment.
-  - Access is rebuilt from Notion on every request (`src/lib/viewer.ts`), so unlinking a brand takes effect immediately. The scope rules live in `src/lib/scope.ts`.
-- **Files** open through `/api/files/:id`. This route checks that the file belongs to the signed-in client, then redirects to a fresh link. Notion-hosted file links expire after about 1 hour.
-- **Messages** (the general chat) use the client's own row-page in the Clients DB as the thread.
-  - Comments posted in the app appear in Notion under the client's name.
+- **People and Brands**: one person can share brands with others, e.g. Liam and Jack both linked to Natty and Freedom Club, each with a private personal brand.
+  - **Personal brand** tick box: the first time a ticked person signs in, the app creates "<Name> – Personal" in Brands (Type: Personal brand) and links it to them. It is labelled **Personal** in the app. Unticking hides it but keeps it in Notion.
+  - Brand pills (*All · Natty · … · Personal*) filter Tasks and Documents instantly in the browser. The server only sends the person's own brands' data.
+  - **Ready for your review** always shows every brand, with each card labelled. New project asks which brand it's for, and a brand outside the person's own is rejected on the server.
+  - Per-video feedback on shared brands shows who wrote each comment. The scope rules are in `src/lib/scope.ts`.
+- **Files** open through `/api/files/:id`. This route checks that the file belongs to one of the signed-in person's brands, then redirects to a fresh link. Notion-hosted file links expire after about 1 hour.
+- **Messages** (the general chat) are the comments on the person's own People row, one thread covering all their brands.
+  - Comments posted in the app appear in Notion under the person's name.
   - Comments you add in Notion appear in the app within about 15 seconds, by polling.
   - Notion's API returns only open (unresolved) comments. If you resolve a thread in Notion, it disappears from the portal.
 - **Login throttling**: after 5 failed attempts in 15 minutes, further attempts from that email or IP are blocked. This uses in-memory storage, so on Vercel each instance keeps its own count. For a strict global limit, use Upstash Redis or Vercel KV.
@@ -81,5 +81,5 @@ All colours live in one commented block at the top of `src/app/globals.css`, wit
 ## Deploy to Vercel
 
 1. Push this folder to a Git repository and import it in Vercel.
-2. Under **Settings → Environment Variables**, add all five variables from the table above.
+2. Under **Settings → Environment Variables**, add the variables from the table above.
 3. Deploy.

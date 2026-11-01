@@ -1,48 +1,29 @@
 import "server-only";
-import { createPersonalBrand, getClient, getPerson, type Actor, type ClientProfile } from "./notion";
-import { getPrincipal } from "./session";
+import { cache } from "react";
+import { createPersonalBrand, getBrand, getPerson, type Actor, type Brand } from "./notion";
+import { getSessionPersonId } from "./session";
 
 /**
- * Everything the app knows about the signed-in viewer, rebuilt from Notion on every request.
- * This is the single access gate: unlinking a brand (or blocking a person) in Notion takes
- * effect on the next request.
+ * The signed-in person and the brands they can see, rebuilt from Notion on every request.
+ * This is the single access gate: unlinking a brand (or setting a person or brand Inactive)
+ * in Notion takes effect on the next request. Their Messages thread is their own People row.
  */
-export type Viewer = Actor & {
-  /** Notion page whose comments are this viewer's Messages thread. */
-  messagesPageId: string;
-  brands: ClientProfile[];
-};
+export type Viewer = Actor & { brands: Brand[] };
 
-export async function getViewer(): Promise<Viewer | null> {
-  const principal = await getPrincipal();
-  if (!principal) return null;
-
-  if (principal.kind === "client") {
-    const client = await getClient(principal.id);
-    if (!client) return null;
-    return {
-      kind: "client",
-      id: client.id,
-      name: client.name,
-      email: client.email,
-      brandIds: [client.id],
-      brands: [client],
-      messagesPageId: client.id,
-    };
-  }
-
-  const person = await getPerson(principal.id);
+export const getViewer = cache(async (): Promise<Viewer | null> => {
+  const personId = await getSessionPersonId();
+  if (!personId) return null;
+  const person = await getPerson(personId);
   if (!person) return null;
-  // Each linked brand must still be a live row in the Brands (Clients) database.
-  let linked = (await Promise.all(person.brandIds.map((id) => getClient(id)))).filter(
-    (b): b is ClientProfile => b !== null,
-  );
+
+  // Each linked brand must still be a live row in the Brands database.
+  let linked = (await Promise.all(person.brandIds.map((id) => getBrand(id)))).filter((b): b is Brand => b !== null);
 
   // "Personal brand" tick box: create their personal brand the first time it's ticked;
   // when unticked, it stays in Notion but is hidden from the app.
   if (person.wantsPersonalBrand && !linked.some((b) => b.personal)) {
     try {
-      const created = await getClient(await createPersonalBrand(person));
+      const created = await getBrand(await createPersonalBrand(person));
       if (created) linked = [...linked, created];
     } catch (error) {
       console.error("Could not create personal brand:", error);
@@ -55,13 +36,5 @@ export async function getViewer(): Promise<Viewer | null> {
     ...linked.filter((b) => !b.personal),
     ...linked.filter((b) => b.personal).map((b) => ({ ...b, name: "Personal" })),
   ];
-  return {
-    kind: "person",
-    id: person.id,
-    name: person.name,
-    email: person.email,
-    brandIds: brands.map((b) => b.id),
-    brands,
-    messagesPageId: person.id, // one Messages thread per person, covering all their brands
-  };
-}
+  return { id: person.id, name: person.name, email: person.email, brandIds: brands.map((b) => b.id), brands };
+});

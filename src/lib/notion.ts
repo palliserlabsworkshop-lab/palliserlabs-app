@@ -19,8 +19,8 @@ import {
   APPROVED_STATUS,
   ARCHIVE_AFTER_DOWNLOAD_DAYS,
   ARCHIVED_STATUS,
-  BLOCKED_CLIENT_STATUSES,
-  CLIENT_PROPS,
+  BLOCKED_STATUSES,
+  BRAND_PROPS,
   DONE_STATUSES,
   FILE_PROPS,
   HIDE_DONE_AFTER_DAYS,
@@ -221,18 +221,16 @@ function relationIds(page: PageObjectResponse, name: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Clients
+// Brands and People
 // ---------------------------------------------------------------------------
 
-export type ClientProfile = { id: string; name: string; company: string; email: string; personal: boolean };
+export type Brand = { id: string; name: string; personal: boolean };
 
-function toProfile(page: PageObjectResponse): ClientProfile {
+function toBrand(page: PageObjectResponse): Brand {
   return {
     id: page.id,
-    name: getText(page, CLIENT_PROPS.name, true),
-    company: getText(page, CLIENT_PROPS.company),
-    email: getText(page, CLIENT_PROPS.email),
-    personal: getText(page, CLIENT_PROPS.type).toLowerCase() === PERSONAL_BRAND_TYPE.toLowerCase(),
+    name: getText(page, BRAND_PROPS.name, true),
+    personal: getText(page, BRAND_PROPS.type).toLowerCase() === PERSONAL_BRAND_TYPE.toLowerCase(),
   };
 }
 
@@ -248,33 +246,21 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 function isBlocked(page: PageObjectResponse): boolean {
-  const status = getText(page, CLIENT_PROPS.status).toLowerCase();
-  return BLOCKED_CLIENT_STATUSES.includes(status);
+  const status = getText(page, "Status").toLowerCase();
+  return BLOCKED_STATUSES.includes(status);
 }
 
-/**
- * Returns the client whose Email + App Password match, or null.
- * The password comparison happens here on the server; it is never sent to the browser.
- */
-export async function authenticateClient(email: string, password: string): Promise<ClientProfile | null> {
-  const page = await matchLogin(env.clientsDbId, CLIENT_PROPS, email, password);
-  return page ? toProfile(page) : null;
-}
+
+/** The signed-in person acting in the app. `brandIds` always comes from Notion on the server. */
+export type Actor = { id: string; name: string; email: string; brandIds: string[] };
 
 /**
- * Who is acting: a person (People DB) or a legacy client login (Clients DB row).
- * `brandIds` always comes from Notion on the server.
+ * Finds the person whose Email + 4-digit App Password match. Timing-safe, and the password is
+ * only ever compared here on the server.
  */
-export type Actor = { kind: "person" | "client"; id: string; name: string; email: string; brandIds: string[] };
-
-/** Finds the row in a database whose Email + 4-digit App Password match. Timing-safe. */
-async function matchLogin(
-  databaseId: string,
-  props: { email: string; appPassword: string },
-  email: string,
-  password: string,
-): Promise<PageObjectResponse | null> {
-  const ds = await dataSource(databaseId);
+async function matchLogin(email: string, password: string): Promise<PageObjectResponse | null> {
+  const props = PERSON_PROPS;
+  const ds = await dataSource(env.peopleDbId);
   const wanted = email.trim().toLowerCase();
   let candidates: PageObjectResponse[] = [];
   for (const value of new Set([email.trim(), wanted])) {
@@ -319,8 +305,8 @@ export function createPersonalBrand(person: PersonProfile): Promise<string> {
   const job = (async () => {
     const brandsDs = await dataSource(env.clientsDbId);
     const names = Object.keys(brandsDs.schema);
-    const titleName = names.find((n) => brandsDs.schema[n] === "title") ?? CLIENT_PROPS.name;
-    const typeName = resolveName(names, CLIENT_PROPS.type);
+    const titleName = names.find((n) => brandsDs.schema[n] === "title") ?? BRAND_PROPS.name;
+    const typeName = resolveName(names, BRAND_PROPS.type);
     const properties: Record<string, unknown> = {
       [titleName]: { title: chunkText(`${person.name || "Personal"} – Personal`) },
     };
@@ -331,7 +317,7 @@ export function createPersonalBrand(person: PersonProfile): Promise<string> {
       properties: properties as Parameters<Client["pages"]["create"]>[0]["properties"],
     });
     // Link it on the person's Brands relation (two-way, so the brand shows them under "People").
-    const peopleDs = await dataSource(env.peopleDbId!);
+    const peopleDs = await dataSource(env.peopleDbId);
     const relName = brandColumn(peopleDs.schema, PERSON_PROPS.brands);
     await notion().pages.update({
       page_id: person.id,
@@ -345,20 +331,15 @@ export function createPersonalBrand(person: PersonProfile): Promise<string> {
   return job;
 }
 
-/** People login (only when PEOPLE_DB_ID is set). */
 export async function authenticatePerson(email: string, password: string): Promise<PersonProfile | null> {
-  const dbId = env.peopleDbId;
-  if (!dbId) return null;
-  const page = await matchLogin(dbId, PERSON_PROPS, email, password);
-  return page ? toPerson(page, (await dataSource(dbId)).schema) : null;
+  const page = await matchLogin(email, password);
+  return page ? toPerson(page, (await dataSource(env.peopleDbId)).schema) : null;
 }
 
 /** Loads a person by page ID, verifying it's a row in the People DB and not blocked. */
 export async function getPerson(personId: string): Promise<PersonProfile | null> {
-  const dbId = env.peopleDbId;
-  if (!dbId) return null;
-  const page = await loadRowOf(dbId, personId);
-  return page ? toPerson(page, (await dataSource(dbId)).schema) : null;
+  const page = await loadRowOf(env.peopleDbId, personId);
+  return page ? toPerson(page, (await dataSource(env.peopleDbId)).schema) : null;
 }
 
 /** Retrieves a page and checks it belongs to the given database (and isn't trashed or blocked). */
@@ -382,10 +363,10 @@ async function loadRowOf(databaseId: string, pageId: string): Promise<PageObject
   }
 }
 
-/** Loads a client by page ID, verifying the page really is a row in the Clients DB. */
-export async function getClient(clientId: string): Promise<ClientProfile | null> {
-  const page = await loadRowOf(env.clientsDbId, clientId);
-  return page ? toProfile(page) : null;
+/** Loads a brand by page ID, verifying it's a live row in the Brands database. */
+export async function getBrand(brandId: string): Promise<Brand | null> {
+  const page = await loadRowOf(env.clientsDbId, brandId);
+  return page ? toBrand(page) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -744,7 +725,7 @@ export async function createProject(actor: Actor, brandId: string, brief: Brief)
     optional[platformName] = { multi_select: options(labelsFor(brief.platform, PLATFORM_OPTIONS)) };
   }
   // Who asked for it — a link to their People row, or just their name.
-  if (ds.schema[requestedByName] === "relation" && actor.kind === "person") {
+  if (ds.schema[requestedByName] === "relation") {
     optional[requestedByName] = { relation: [{ id: actor.id }] };
   } else if (ds.schema[requestedByName] === "rich_text" && actor.name) {
     optional[requestedByName] = { rich_text: chunkText(actor.name) };
@@ -819,7 +800,7 @@ export async function getClientFileLink(brandIds: string[], fileId: string): Pro
 }
 
 // ---------------------------------------------------------------------------
-// Comments — the client's own row-page in the Clients DB is the thread
+// Comments — Messages live on the person's People row; video feedback on the task page
 // ---------------------------------------------------------------------------
 
 export type PortalComment = {

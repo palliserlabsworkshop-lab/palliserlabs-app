@@ -2,13 +2,13 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { approveVideo, authenticateClient, authenticatePerson, createProject, requestTweaks } from "@/lib/notion";
+import { approveVideo, authenticatePerson, createProject, requestTweaks } from "@/lib/notion";
 import { canUseBrand } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { TWEAK_AREAS } from "@/lib/review";
 import { isoDateFromToday, validateBrief, type BriefErrors } from "@/lib/brief";
 import { clearFailures, isLimited, recordFailure } from "@/lib/rate-limit";
-import { createSession, destroySession, type Principal } from "@/lib/session";
+import { createSession, destroySession } from "@/lib/session";
 
 export type LoginState = { error?: string; email?: string };
 
@@ -28,23 +28,21 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     return { error: "Too many attempts. Please wait 15 minutes and try again.", email };
   }
 
-  let principal: Principal;
+  let personId: string;
   try {
-    // People first (a person may also still have an old client-row login), then client rows.
     const person = await authenticatePerson(email, password);
-    const client = person ? null : await authenticateClient(email, password);
-    if (!person && !client) {
+    if (!person) {
       keys.forEach(recordFailure);
       return { error: "That email and App Password don’t match our records.", email };
     }
-    principal = person ? { kind: "person", id: person.id } : { kind: "client", id: client!.id };
+    personId = person.id;
   } catch (error) {
     console.error("Login failed:", error);
     return { error: "We couldn’t reach the server. Please try again shortly.", email };
   }
 
   keys.forEach(clearFailures);
-  await createSession(principal);
+  await createSession(personId);
   redirect("/dashboard");
 }
 

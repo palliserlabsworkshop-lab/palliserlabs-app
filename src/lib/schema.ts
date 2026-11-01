@@ -2,12 +2,10 @@
  * Notion property names used by the portal. If you rename a column in
  * Notion, update it here — nothing else needs to change.
  */
-export const CLIENT_PROPS = {
+/** Brands database (env CLIENTS_DB_ID) — one row per business or personal brand. No logins here. */
+export const BRAND_PROPS = {
   name: "Name",
-  email: "Email",
-  company: "Company",
   status: "Status",
-  appPassword: "App Password",
   type: "Type", // Select — "Business" or "Personal brand"
 } as const;
 
@@ -32,7 +30,7 @@ export const TASK_PROPS = {
   requestedBy: "Requested by", // Relation to People (or Text) — who submitted it from the portal
 } as const;
 
-/** People database (optional, PEOPLE_DB_ID) — logins that can see several brands. */
+/** People database (env PEOPLE_DB_ID) — everyone who signs in, each linked to one or more brands. */
 export const PERSON_PROPS = {
   name: "Name",
   email: "Email",
@@ -70,5 +68,5 @@ export const FILE_PROPS = {
 /** Task status values that count as "Completed" (case-insensitive). */
 export const DONE_STATUSES = ["done", "completed", "complete", "approved", "archived"];
 
-/** Client Status values that are NOT allowed to log in (case-insensitive). */
-export const BLOCKED_CLIENT_STATUSES = ["inactive", "archived", "disabled", "former"];
+/** Status values (on People or Brands) that switch a login or brand off (case-insensitive). */
+export const BLOCKED_STATUSES = ["inactive", "archived", "disabled", "former"];

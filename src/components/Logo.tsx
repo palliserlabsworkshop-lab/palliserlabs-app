@@ -16,14 +16,6 @@ function Mark() {
   );
 }
 
-export function LogoMark({ className = "h-7 w-auto" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 424 274" className={className} aria-hidden="true" shapeRendering="geometricPrecision">
-      <Mark />
-    </svg>
-  );
-}
-
 export function Logo({ size = "md" }: { size?: "md" | "lg" }) {
   return (
     <svg
