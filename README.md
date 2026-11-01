@@ -62,7 +62,8 @@ The app reads each database's schema at runtime, so property types are flexible:
 - **People and Brands (optional)**: set `PEOPLE_DB_ID` to turn this on. It is for people who share businesses, e.g. Liam and Jack sharing Natty, each with a personal brand.
   - Each row in the Clients database is a **brand**. Each row in the People database (`Name`, `Email`, `App Password`, `Status`, `Brands`) is a **login** linked to one or more brands.
   - People sign in with their own email and code. People logins are checked first, then client-row logins.
-  - Brand pills (*All · Natty · …*) filter Tasks and Documents. **Ready for your review** always shows every brand, with each card labelled.
+  - **Personal brand** tick box (Checkbox on People): when ticked, the app creates "<Name> – Personal" in Brands (Type: Personal brand) and links it the first time that person signs in. Unticking hides it from the app but keeps it in Notion. In the app it is labelled **Personal**.
+  - Brand pills (*All · Natty · … · Personal*) filter Tasks and Documents instantly in the browser. The server sends only the viewer's own brands' data. **Ready for your review** always shows every brand, with each card labelled.
   - New project asks which brand it's for. Choosing a brand outside the person's own is rejected on the server.
   - Each person has one Messages thread, on their People row, covering all their brands. Per-video feedback on shared brands shows who wrote each comment.
   - Access is rebuilt from Notion on every request (`src/lib/viewer.ts`), so unlinking a brand takes effect immediately. The scope rules live in `src/lib/scope.ts`.

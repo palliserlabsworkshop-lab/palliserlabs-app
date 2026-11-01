@@ -13,6 +13,7 @@ import {
 } from "@notionhq/client";
 import { env, normalizeNotionId } from "./env";
 import {
+  PERSONAL_BRAND_TYPE,
   PERSON_PROPS,
   REVIEW_STATUS,
   APPROVED_STATUS,
@@ -223,7 +224,7 @@ function relationIds(page: PageObjectResponse, name: string): string[] {
 // Clients
 // ---------------------------------------------------------------------------
 
-export type ClientProfile = { id: string; name: string; company: string; email: string };
+export type ClientProfile = { id: string; name: string; company: string; email: string; personal: boolean };
 
 function toProfile(page: PageObjectResponse): ClientProfile {
   return {
@@ -231,7 +232,13 @@ function toProfile(page: PageObjectResponse): ClientProfile {
     name: getText(page, CLIENT_PROPS.name, true),
     company: getText(page, CLIENT_PROPS.company),
     email: getText(page, CLIENT_PROPS.email),
+    personal: getText(page, CLIENT_PROPS.type).toLowerCase() === PERSONAL_BRAND_TYPE.toLowerCase(),
   };
+}
+
+function getCheckbox(page: PageObjectResponse, name: string): boolean {
+  const prop = findProp(page, name);
+  return prop?.type === "checkbox" ? prop.checkbox : false;
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -287,7 +294,7 @@ async function matchLogin(
   return null;
 }
 
-export type PersonProfile = { id: string; name: string; email: string; brandIds: string[] };
+export type PersonProfile = { id: string; name: string; email: string; brandIds: string[]; wantsPersonalBrand: boolean };
 
 function toPerson(page: PageObjectResponse, schema: Schema): PersonProfile {
   return {
@@ -295,7 +302,47 @@ function toPerson(page: PageObjectResponse, schema: Schema): PersonProfile {
     name: getText(page, PERSON_PROPS.name, true),
     email: getText(page, PERSON_PROPS.email),
     brandIds: relationIds(page, brandColumn(schema, PERSON_PROPS.brands)),
+    wantsPersonalBrand: getCheckbox(page, PERSON_PROPS.personalBrand),
   };
+}
+
+/** Avoids creating two personal brands if two requests arrive at once. */
+const personalBrandInFlight = new Map<string, Promise<string>>();
+
+/**
+ * Creates "<Name> – Personal" in the Brands database (Type: Personal brand) and links it to the
+ * person. Called when their "Personal brand" box is ticked and they don't have one yet.
+ */
+export function createPersonalBrand(person: PersonProfile): Promise<string> {
+  const running = personalBrandInFlight.get(person.id);
+  if (running) return running;
+  const job = (async () => {
+    const brandsDs = await dataSource(env.clientsDbId);
+    const names = Object.keys(brandsDs.schema);
+    const titleName = names.find((n) => brandsDs.schema[n] === "title") ?? CLIENT_PROPS.name;
+    const typeName = resolveName(names, CLIENT_PROPS.type);
+    const properties: Record<string, unknown> = {
+      [titleName]: { title: chunkText(`${person.name || "Personal"} – Personal`) },
+    };
+    if (brandsDs.schema[typeName] === "select") properties[typeName] = { select: { name: PERSONAL_BRAND_TYPE } };
+    const page = await notion().pages.create({
+      parent: { data_source_id: brandsDs.id },
+      icon: { type: "emoji", emoji: "👤" },
+      properties: properties as Parameters<Client["pages"]["create"]>[0]["properties"],
+    });
+    // Link it on the person's Brands relation (two-way, so the brand shows them under "People").
+    const peopleDs = await dataSource(env.peopleDbId!);
+    const relName = brandColumn(peopleDs.schema, PERSON_PROPS.brands);
+    await notion().pages.update({
+      page_id: person.id,
+      properties: {
+        [relName]: { relation: [...person.brandIds, page.id].map((id) => ({ id })) },
+      } as Parameters<Client["pages"]["update"]>[0]["properties"],
+    });
+    return page.id;
+  })().finally(() => personalBrandInFlight.delete(person.id));
+  personalBrandInFlight.set(person.id, job);
+  return job;
 }
 
 /** People login (only when PEOPLE_DB_ID is set). */

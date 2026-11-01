@@ -3,14 +3,11 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { maybeSyncFinalEdits } from "@/lib/drive-sync";
-import { TaskBoard, TaskSummary } from "@/components/TaskBoard";
-import { FileList } from "@/components/FileList";
 import { Comments } from "@/components/Comments";
 import { AutoRefresh } from "@/components/AutoRefresh";
-import { ProjectForm } from "@/components/ProjectForm";
 import { FloatingNav } from "@/components/FloatingNav";
 import { ReviewSection } from "@/components/ReviewSection";
-import { BrandSwitcher } from "@/components/BrandSwitcher";
+import { BrandPills, BrandScopeProvider, ScopedFiles, ScopedProjectForm, ScopedTasks } from "@/components/BrandScope";
 import { scopeBrands } from "@/lib/scope";
 import { reviewStage } from "@/lib/review";
 import { getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
@@ -54,7 +51,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
   const scoped = scopeBrands(viewer.brandIds, typeof requested === "string" ? requested : null);
   const activeBrand = multi && scoped.length === 1 ? scoped[0] : null;
   const brandNames: Record<string, string> = Object.fromEntries(viewer.brands.map((b) => [b.id, b.name]));
-  const showBrandLabels = multi && !activeBrand;
+  const pillBrands = viewer.brands.map((b) => ({ id: b.id, name: b.name }));
   const single = viewer.brands[0];
 
   // Check the Drive "Final edits" folder in the background (at most once a minute);
@@ -72,19 +69,16 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
   ]);
 
 
-  // Videos waiting on the client (or being tweaked / ready to download) get their own section up top;
-  // the board shows everything else, so nothing appears twice.
-  // The review section always covers every brand, so nothing waiting is missed;
-  // the board and documents follow the selected brand pill.
-  const inScope = (brandId: string | null) => !activeBrand || brandId === activeBrand;
+  // Videos waiting on the client (or being tweaked / ready to download) get their own section up top,
+  // across every brand so nothing waiting is missed. The board shows everything else, so nothing
+  // appears twice. Tasks and documents for all brands are sent once and filtered in the browser
+  // when a brand pill is tapped (instant), always within the viewer's own brands.
   const reviewTasks = tasks.filter((t) => reviewStage(t));
-  const boardTasks = tasks.filter((t) => !reviewStage(t) && inScope(t.brandId));
-  const scopedTasks = tasks.filter((t) => inScope(t.brandId));
-  const scopedFiles = files.filter((f) => inScope(f.brandId));
+  const boardTasks = tasks.filter((t) => !reviewStage(t));
   const toReview = reviewTasks.filter((t) => reviewStage(t) === "review").length;
 
   return (
-    <>
+    <BrandScopeProvider brands={pillBrands} initial={activeBrand}>
       <AutoRefresh />
       <FloatingNav showReview reviewCount={toReview} />
       <section className="animate-rise">
@@ -93,7 +87,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
           {viewer.name || "there"}
         </h1>
         {multi ? (
-          <BrandSwitcher brands={viewer.brands} active={activeBrand} />
+          <BrandPills />
         ) : (
           (single?.company || (viewer.kind === "person" && single?.name)) && (
             <p className="mt-4 inline-flex items-center rounded-full border border-line bg-card px-3.5 py-1.5 text-[0.8rem] font-bold text-foreground">
@@ -134,25 +128,21 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
       </Section>
 
       <Section id="tasks" title="Tasks" delay={80}>
-        <TaskSummary tasks={scopedTasks} />
-        <TaskBoard tasks={boardTasks} brandNames={showBrandLabels ? brandNames : undefined} />
+        <ScopedTasks allTasks={tasks} boardTasks={boardTasks} />
       </Section>
 
       <Section id="new-project" title="New project" delay={160}>
-        <ProjectForm
-          brands={multi ? viewer.brands.map((b) => ({ id: b.id, name: b.name })) : []}
-          defaultBrandId={activeBrand ?? (multi ? null : single?.id ?? null)}
-        />
+        <ScopedProjectForm />
       </Section>
 
-      <Section id="documents" title="Documents" delay={240} aside={scopedFiles.length ? `${scopedFiles.length} shared` : undefined}>
-        <FileList files={scopedFiles} brandNames={showBrandLabels ? brandNames : undefined} />
+      <Section id="documents" title="Documents" delay={240} aside={!multi && files.length ? `${files.length} shared` : undefined}>
+        <ScopedFiles files={files} />
       </Section>
 
       <Section id="messages" title="Messages" delay={320} subtitle={multi ? "Your direct line to the Palliser Labs team — for all your brands." : "Your direct line to the Palliser Labs team."}>
         <Comments initial={comments ?? []} initialError={comments === null} />
       </Section>
-    </>
+    </BrandScopeProvider>
   );
 }
 

@@ -8,7 +8,11 @@ export const CLIENT_PROPS = {
   company: "Company",
   status: "Status",
   appPassword: "App Password",
+  type: "Type", // Select — "Business" or "Personal brand"
 } as const;
+
+/** Brand Type value for personal brands (case-insensitive match). */
+export const PERSONAL_BRAND_TYPE = "Personal brand";
 
 export const TASK_PROPS = {
   title: "Task",
@@ -35,6 +39,7 @@ export const PERSON_PROPS = {
   appPassword: "App Password",
   status: "Status",
   brands: "Brands", // Relation to the Clients/Brands database
+  personalBrand: "Personal brand", // Checkbox — when ticked, the app creates and shows their personal brand
 } as const;
 
 /**

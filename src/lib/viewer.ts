@@ -1,5 +1,5 @@
 import "server-only";
-import { getClient, getPerson, type Actor, type ClientProfile } from "./notion";
+import { createPersonalBrand, getClient, getPerson, type Actor, type ClientProfile } from "./notion";
 import { getPrincipal } from "./session";
 
 /**
@@ -34,9 +34,27 @@ export async function getViewer(): Promise<Viewer | null> {
   const person = await getPerson(principal.id);
   if (!person) return null;
   // Each linked brand must still be a live row in the Brands (Clients) database.
-  const brands = (await Promise.all(person.brandIds.map((id) => getClient(id)))).filter(
+  let linked = (await Promise.all(person.brandIds.map((id) => getClient(id)))).filter(
     (b): b is ClientProfile => b !== null,
   );
+
+  // "Personal brand" tick box: create their personal brand the first time it's ticked;
+  // when unticked, it stays in Notion but is hidden from the app.
+  if (person.wantsPersonalBrand && !linked.some((b) => b.personal)) {
+    try {
+      const created = await getClient(await createPersonalBrand(person));
+      if (created) linked = [...linked, created];
+    } catch (error) {
+      console.error("Could not create personal brand:", error);
+    }
+  }
+  if (!person.wantsPersonalBrand) linked = linked.filter((b) => !b.personal);
+
+  // Businesses first, then their own personal brand, shown simply as "Personal".
+  const brands = [
+    ...linked.filter((b) => !b.personal),
+    ...linked.filter((b) => b.personal).map((b) => ({ ...b, name: "Personal" })),
+  ];
   return {
     kind: "person",
     id: person.id,
