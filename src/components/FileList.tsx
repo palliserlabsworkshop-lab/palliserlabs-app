@@ -48,7 +48,7 @@ export function FileList({ files, brandNames }: { files: ClientFile[]; brandName
               <FileIcon />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.9rem] font-bold text-foreground">{file.name}</span>
+              <span className="block truncate text-[0.9rem] font-semibold text-foreground">{file.name}</span>
               <span className="mt-0.5 block text-[0.75rem] text-muted">
                 {file.type || "File"}
                 {file.brandId && brandNames?.[file.brandId] ? ` · ${brandNames[file.brandId]}` : ""}
@@ -67,7 +67,7 @@ export function FileList({ files, brandNames }: { files: ClientFile[]; brandName
                 className="group flex min-h-16 items-center gap-3.5 px-4 py-3.5 transition-colors hover:bg-surface/60 active:bg-surface"
               >
                 {body}
-                <span className="pressable inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface px-3.5 text-[0.75rem] font-bold text-foreground group-hover:bg-foreground group-hover:text-on-ink group-active:scale-95">
+                <span className="pressable inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full bg-surface px-3.5 text-[0.75rem] font-semibold text-foreground group-hover:bg-foreground group-hover:text-on-ink group-active:scale-95">
                   Open
                   <ArrowIcon />
                 </span>

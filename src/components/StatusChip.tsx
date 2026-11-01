@@ -30,7 +30,7 @@ export function StatusChip({
   const text = label ?? style.label ?? status;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-bold ${style.chip} ${
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-semibold ${style.chip} ${
         size === "md" ? "px-3 py-1 text-[0.75rem]" : "px-2 py-0.5 text-[0.66rem] tracking-wide"
       }`}
     >

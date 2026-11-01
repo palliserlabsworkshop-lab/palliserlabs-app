@@ -83,7 +83,7 @@ export function BrandPills() {
               role="tab"
               aria-selected={selected}
               onClick={() => setActive(o.id)}
-              className={`relative z-10 min-h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-[0.82rem] font-bold transition-colors duration-200 [-webkit-tap-highlight-color:transparent] active:opacity-60 ${
+              className={`relative z-10 min-h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-[0.82rem] font-semibold transition-colors duration-200 [-webkit-tap-highlight-color:transparent] active:opacity-60 ${
                 selected ? "text-foreground" : "text-muted hover:text-foreground"
               }`}
             >

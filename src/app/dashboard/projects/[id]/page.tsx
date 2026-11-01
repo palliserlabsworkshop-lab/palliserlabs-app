@@ -76,7 +76,7 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
               <Link
                 href={`/dashboard/projects/${project.id}/footage`}
                 prefetch={false}
-                className="pressable flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.9rem] font-bold text-on-ink hover:bg-primary-ink"
+                className="pressable flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.9rem] font-semibold text-on-ink hover:bg-primary-ink"
               >
                 Next: send your footage →
               </Link>
@@ -93,7 +93,7 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
         <dl className={`card divide-y divide-line overflow-hidden ${script ? "" : "mt-10"}`}>
           {briefRows(project.brief).map((row) => (
             <div key={row.label} className="px-4 py-4 sm:grid sm:grid-cols-[10rem_1fr] sm:gap-6 sm:px-5">
-              <dt className="text-[0.75rem] font-bold uppercase tracking-wide text-muted">{row.label}</dt>
+              <dt className="text-[0.75rem] font-semibold uppercase tracking-wide text-muted">{row.label}</dt>
               <dd className="mt-1.5 min-w-0 sm:mt-0">
                 {row.values.length === 0 ? (
                   <span className="text-[0.9rem] text-muted/70">—</span>
@@ -102,7 +102,7 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
                     {row.values.map((v) => (
                       <li key={v} className="break-all text-[0.9rem]">
                         {isHttpUrl(v) ? (
-                          <a href={v} target="_blank" rel="noopener noreferrer" className="font-bold text-primary-ink hover:underline">
+                          <a href={v} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary-ink hover:underline">
                             {v}
                           </a>
                         ) : (
@@ -114,7 +114,7 @@ async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
                 ) : row.values.length > 1 || row.label !== "Notes" ? (
                   <div className="flex flex-wrap gap-1.5">
                     {row.values.map((v) => (
-                      <span key={v} className="rounded-full bg-surface px-3 py-1 text-[0.8rem] font-bold text-foreground">
+                      <span key={v} className="rounded-full bg-surface px-3 py-1 text-[0.8rem] font-semibold text-foreground">
                         {v}
                       </span>
                     ))}
@@ -141,7 +141,7 @@ export default function ProjectPage({ params }: PageProps<"/dashboard/projects/[
     <>
       <Link
         href="/dashboard"
-        className="mb-8 inline-flex items-center gap-1.5 text-[0.8rem] font-bold text-muted transition hover:text-foreground"
+        className="mb-8 inline-flex items-center gap-1.5 text-[0.8rem] font-semibold text-muted transition hover:text-foreground"
       >
         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
           <path d="M10 3L5 8l5 5" strokeLinecap="round" strokeLinejoin="round" />

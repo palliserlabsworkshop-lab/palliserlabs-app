@@ -92,7 +92,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
           <BrandPills />
         ) : (
           single && (
-            <p className="mt-4 inline-flex items-center rounded-full border border-line bg-card px-3.5 py-1.5 text-[0.8rem] font-bold text-foreground">
+            <p className="mt-4 inline-flex items-center rounded-full border border-line bg-card px-3.5 py-1.5 text-[0.8rem] font-semibold text-foreground">
               {single.name}
             </p>
           )

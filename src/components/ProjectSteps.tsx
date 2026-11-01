@@ -35,14 +35,14 @@ export function ProjectSteps({ task, size = "sm" }: { task: Task; size?: "sm" | 
       {size === "md" ? (
         <ol className="mt-2.5 flex justify-between gap-1 text-[0.7rem]">
           {steps.map((step, i) => (
-            <li key={step} className={i === current ? "font-bold text-foreground" : filled(i) ? "text-foreground/70" : "text-muted/70"}>
+            <li key={step} className={i === current ? "font-semibold text-foreground" : filled(i) ? "text-foreground/70" : "text-muted/70"}>
               {step}
             </li>
           ))}
         </ol>
       ) : (
         <p className="mt-1.5 flex items-baseline justify-between gap-2 text-[0.68rem]">
-          <span className="font-bold text-foreground">{steps[current]}</span>
+          <span className="font-semibold text-foreground">{steps[current]}</span>
           <span className="tabular-nums text-muted">
             {current + 1} of {steps.length}
           </span>

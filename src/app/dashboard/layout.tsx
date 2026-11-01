@@ -16,7 +16,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
             <form action={logout}>
             <button
               type="submit"
-              className="pressable min-h-11 rounded-full px-4 text-[0.85rem] font-bold text-muted hover:bg-card hover:text-foreground"
+              className="pressable min-h-11 rounded-full px-4 text-[0.85rem] font-semibold text-muted hover:bg-card hover:text-foreground"
             >
               Sign out
             </button>

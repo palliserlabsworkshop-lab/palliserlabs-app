@@ -6,11 +6,8 @@ import { themeInitScript } from "@/lib/theme";
 const sora = localFont({
   variable: "--font-sora",
   display: "swap",
-  src: [
-    { path: "../fonts/Sora-Regular.ttf", weight: "400", style: "normal" },
-    { path: "../fonts/Sora-Bold.ttf", weight: "700", style: "normal" },
-    { path: "../fonts/Sora-ExtraBold.ttf", weight: "800", style: "normal" },
-  ],
+  // Variable font (OFL), so UI labels can use SemiBold (600) — calmer than Bold, closer to Apple's system weights.
+  src: [{ path: "../fonts/Sora-Variable.woff2", weight: "100 800", style: "normal" }],
 });
 
 const aspekta = localFont({

@@ -16,7 +16,7 @@ function CalendarIcon() {
 }
 
 const linkPill =
-  "pressable inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-[0.7rem] font-bold text-foreground hover:bg-foreground hover:text-on-ink";
+  "pressable inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-[0.7rem] font-semibold text-foreground hover:bg-foreground hover:text-on-ink";
 
 function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
   const { kind, label } = taskDisplay(task);
@@ -29,9 +29,9 @@ function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
     <li className="card relative overflow-hidden py-3.5 pl-4 pr-3.5 sm:py-4 sm:pl-5 sm:pr-4">
       {/* Status bar — echoes the rounded bars of the Palliser Labs mark */}
       <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${STATUS_STYLES[kind].rail}`} aria-hidden />
-      {brandName && <span className="mb-1 block text-[0.66rem] font-bold uppercase tracking-[0.08em] text-muted">{brandName}</span>}
+      {brandName && <span className="mb-1 block text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-muted">{brandName}</span>}
       <p
-        className={`min-w-0 break-words text-[0.85rem] font-bold leading-snug sm:text-[0.92rem] ${
+        className={`min-w-0 break-words text-[0.85rem] font-semibold leading-snug sm:text-[0.92rem] ${
           task.done ? "text-muted" : "text-foreground"
         }`}
       >
@@ -43,7 +43,7 @@ function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
           <span className="text-[0.72rem] text-muted">Back in {SCRIPT_TURNAROUND_LABEL}</span>
         ) : inScriptStep ? null : task.dueDate ? (
           <span
-            className={`inline-flex items-center gap-1 text-[0.72rem] ${overdue ? "font-bold text-orange-ink" : "text-muted"}`}
+            className={`inline-flex items-center gap-1 text-[0.72rem] ${overdue ? "font-semibold text-orange-ink" : "text-muted"}`}
           >
             <CalendarIcon />
             {overdue ? "Overdue · " : ""}
@@ -53,7 +53,7 @@ function TaskCard({ task, brandName }: { task: Task; brandName?: string }) {
           !task.done && <span className="text-[0.72rem] text-muted">No due date</span>
         )}
         {task.downloadedOn && (
-          <span className="text-[0.72rem] font-bold text-success">✓ Downloaded {formatDueDate(task.downloadedOn)}</span>
+          <span className="text-[0.72rem] font-semibold text-success">✓ Downloaded {formatDueDate(task.downloadedOn)}</span>
         )}
       </div>
       {!task.done && hasProject && (
@@ -99,8 +99,8 @@ function Column({
   return (
     <div className="min-w-0">
       <div className="mb-3 flex items-baseline gap-2 px-1">
-        <h3 className="truncate text-[0.8rem] font-bold uppercase tracking-[0.06em] text-muted">{title}</h3>
-        <span className="ml-auto text-[0.8rem] font-bold tabular-nums text-foreground">{tasks.length}</span>
+        <h3 className="truncate text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-muted">{title}</h3>
+        <span className="ml-auto text-[0.8rem] font-semibold tabular-nums text-foreground">{tasks.length}</span>
       </div>
       {tasks.length ? (
         <ul className="space-y-2.5">
@@ -184,7 +184,7 @@ export function TaskBoard({ tasks, brandNames }: { tasks: Task[]; brandNames?: R
       <Column title="Completed" tasks={done} empty="Finished work will appear here." brandNames={brandNames}>
         {archived.length > 0 && (
           <details className="group mt-3">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-1 text-[0.75rem] font-bold text-muted hover:text-foreground">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-1 text-[0.75rem] font-semibold text-muted hover:text-foreground">
               <svg
                 viewBox="0 0 16 16"
                 className="h-3 w-3 transition-transform duration-300 group-open:rotate-90"

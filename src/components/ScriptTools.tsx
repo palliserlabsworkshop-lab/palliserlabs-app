@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 const pill =
-  "pressable inline-flex min-h-10 items-center gap-1.5 rounded-full border border-line bg-card px-3.5 text-[0.78rem] font-bold text-foreground hover:border-foreground/30";
+  "pressable inline-flex min-h-10 items-center gap-1.5 rounded-full bg-surface px-3.5 text-[0.78rem] font-semibold text-foreground hover:bg-foreground/[0.08]";
 
 /** The script itself: readable in place, scrolls when it's long. */
 export function ScriptText({ text, tall = false }: { text: string; tall?: boolean }) {

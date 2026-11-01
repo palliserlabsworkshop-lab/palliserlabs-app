@@ -67,10 +67,10 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
   const header = (
     <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-5 pt-5">
       <div className="min-w-0">
-        {brandName && <span className="mb-1 block text-[0.68rem] font-bold uppercase tracking-[0.08em] text-muted">{brandName}</span>}
-        <h3 className="break-words text-[1rem] font-bold leading-snug">{task.title}</h3>
+        {brandName && <span className="mb-1 block text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-muted">{brandName}</span>}
+        <h3 className="break-words text-[1rem] font-semibold leading-snug">{task.title}</h3>
       </div>
-      <span className="shrink-0 rounded-full bg-surface px-2.5 py-1 text-[0.7rem] font-bold text-muted">Script</span>
+      <span className="shrink-0 rounded-full bg-surface px-2.5 py-1 text-[0.7rem] font-semibold text-muted">Script</span>
     </div>
   );
 
@@ -92,7 +92,7 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent" />
           </span>
           <div>
-            <p className="text-[0.85rem] font-bold text-accent-ink">Script changes in progress</p>
+            <p className="text-[0.85rem] font-semibold text-accent-ink">Script changes in progress</p>
             <p className="mt-1 text-[0.8rem] leading-relaxed text-accent-ink/90">
               We’re on it. The updated script will appear right here for you to review.
             </p>
@@ -110,7 +110,7 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
           <div className="flex items-center gap-3 rounded-2xl bg-primary/10 p-4 text-primary-ink">
             <Tick />
             <div>
-              <p className="text-[0.85rem] font-bold">Script approved</p>
+              <p className="text-[0.85rem] font-semibold">Script approved</p>
               <p className="mt-0.5 text-[0.78rem] leading-relaxed">
                 Next step: send us your footage for this project. Your script comes with it.
               </p>
@@ -120,7 +120,7 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
           <Link
             href={`/dashboard/projects/${task.id}/footage`}
             prefetch={false}
-            className="pressable flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.9rem] font-bold text-on-ink hover:bg-primary-ink"
+            className="pressable flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.9rem] font-semibold text-on-ink hover:bg-primary-ink"
           >
             Next: send your footage
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
@@ -144,7 +144,7 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
         {flash ? (
           <div
             role="status"
-            className={`flex h-12 animate-pop items-center justify-center gap-2 rounded-full text-[0.9rem] font-bold text-on-ink ${
+            className={`flex h-12 animate-pop items-center justify-center gap-2 rounded-full text-[0.9rem] font-semibold text-on-ink ${
               flash === "approved" ? "bg-success" : "bg-accent-ink"
             }`}
           >
@@ -159,7 +159,7 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
                 setError("");
               }}
               disabled={pending}
-              className="pressable h-12 rounded-full border border-line bg-card text-[0.88rem] font-bold text-foreground hover:border-foreground/30"
+              className="pressable h-12 rounded-full bg-surface text-[0.88rem] font-semibold text-foreground hover:bg-foreground/[0.08]"
             >
               Request changes
             </button>
@@ -167,7 +167,7 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
               type="button"
               onClick={approve}
               disabled={pending}
-              className="pressable flex h-12 items-center justify-center gap-2 rounded-full bg-foreground text-[0.88rem] font-bold text-on-ink hover:bg-success disabled:opacity-70"
+              className="pressable flex h-12 items-center justify-center gap-2 rounded-full bg-foreground text-[0.88rem] font-semibold text-on-ink hover:bg-success disabled:opacity-70"
             >
               {pending ? (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-ink/30 border-t-on-ink" aria-hidden />
@@ -182,7 +182,7 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
         ) : (
           <form onSubmit={sendChanges} className="animate-rise space-y-4">
             <div>
-              <label htmlFor={`script-changes-${task.id}`} className="mb-2.5 block text-[0.85rem] font-bold">
+              <label htmlFor={`script-changes-${task.id}`} className="mb-2.5 block text-[0.85rem] font-semibold">
                 What should we change?
               </label>
               <textarea
@@ -193,21 +193,21 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
                 placeholder="e.g. “Make the second hook punchier and shorten the CTA.”"
-                className="w-full resize-y rounded-xl border border-line bg-card px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/70 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]"
+                className="w-full resize-y rounded-xl border border-transparent bg-surface px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/70 focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]"
               />
             </div>
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setMode("idle")}
-                className="pressable h-12 rounded-full text-[0.88rem] font-bold text-muted hover:bg-surface hover:text-foreground"
+                className="pressable h-12 rounded-full text-[0.88rem] font-semibold text-muted hover:bg-surface hover:text-foreground"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="pressable flex h-12 items-center justify-center gap-2 rounded-full bg-foreground text-[0.88rem] font-bold text-on-ink hover:bg-primary-ink disabled:opacity-70"
+                className="pressable flex h-12 items-center justify-center gap-2 rounded-full bg-foreground text-[0.88rem] font-semibold text-on-ink hover:bg-primary-ink disabled:opacity-70"
               >
                 {pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-ink/30 border-t-on-ink" aria-hidden />}
                 Send changes
@@ -216,7 +216,7 @@ export function ScriptCard({ task, brandName }: { task: Task; brandName?: string
           </form>
         )}
         {error && (
-          <p role="alert" className="mt-3 text-center text-[0.8rem] font-bold text-orange-ink">
+          <p role="alert" className="mt-3 text-center text-[0.8rem] font-semibold text-orange-ink">
             {error}
           </p>
         )}

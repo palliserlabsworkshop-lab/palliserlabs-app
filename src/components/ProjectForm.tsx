@@ -51,12 +51,12 @@ const FIELD_ORDER: BriefField[] = [
 ];
 
 const inputClass =
-  "h-12 w-full rounded-xl border bg-card px-3.5 text-base text-foreground placeholder:text-muted/60 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]";
+  "h-12 w-full rounded-xl border bg-surface px-3.5 text-base text-foreground placeholder:text-muted/60 transition focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]";
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
-    <p id={id} role="alert" className="text-[0.75rem] font-bold text-orange-ink">
+    <p id={id} role="alert" className="text-[0.75rem] font-semibold text-orange-ink">
       {message}
     </p>
   );
@@ -77,7 +77,7 @@ function GroupHeader({
 }) {
   return (
     <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-      <span className="text-[0.85rem] font-bold text-foreground">
+      <span className="text-[0.85rem] font-semibold text-foreground">
         {label}
         {required && <span className="ml-0.5 text-orange">*</span>}
         {hint && <span className="ml-2 text-[0.75rem] font-normal text-muted">{hint}</span>}
@@ -113,14 +113,14 @@ function ChipGroup({
         return (
           <label
             key={o.key}
-            className={`pressable inline-flex min-h-11 cursor-pointer select-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[0.8rem] font-bold transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-primary/20 ${
+            className={`pressable inline-flex min-h-11 cursor-pointer select-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[0.8rem] font-semibold transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-primary/20 ${
               checked
-                ? "border-foreground bg-foreground text-on-ink"
+                ? "border-primary/40 bg-primary/[0.12] text-primary-ink"
                 : disabled
-                  ? "cursor-not-allowed border-line bg-surface text-muted/50"
+                  ? "cursor-not-allowed border-transparent bg-surface text-muted/40"
                   : invalid
-                    ? "border-orange/60 bg-card text-foreground hover:border-foreground/30"
-                    : "border-line bg-card text-foreground hover:border-foreground/30"
+                    ? "border-orange/60 bg-surface text-foreground"
+                    : "border-transparent bg-surface text-foreground hover:border-line"
             }`}
           >
             <input
@@ -176,7 +176,7 @@ function StartChoice({ value, onChange }: { value: Kind | null; onChange: (k: Ki
   ];
   return (
     <div>
-      <p className="mb-2.5 text-[0.85rem] font-bold text-foreground">How would you like to start?</p>
+      <p className="mb-2.5 text-[0.85rem] font-semibold text-foreground">How would you like to start?</p>
       <div role="radiogroup" aria-label="How would you like to start?" className="grid grid-cols-2 gap-2.5">
         {options.map((o) => {
           const checked = value === o.key;
@@ -188,15 +188,15 @@ function StartChoice({ value, onChange }: { value: Kind | null; onChange: (k: Ki
               aria-checked={checked}
               onClick={() => onChange(o.key)}
               className={`pressable flex min-h-[6.5rem] flex-col items-start gap-2 rounded-2xl border p-3.5 text-left ${
-                checked ? "border-foreground bg-foreground text-on-ink" : "border-line bg-card text-foreground hover:border-foreground/30"
+                checked ? "border-primary/40 bg-primary/[0.12] text-primary-ink" : "border-transparent bg-surface text-foreground hover:border-line"
               }`}
             >
               <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
                 {o.icon}
               </svg>
               <span>
-                <span className="block text-[0.85rem] font-bold leading-snug">{o.title}</span>
-                <span className={`mt-0.5 block text-[0.7rem] leading-snug ${checked ? "text-on-ink/75" : "text-muted"}`}>{o.hint}</span>
+                <span className="block text-[0.85rem] font-semibold leading-snug">{o.title}</span>
+                <span className={`mt-0.5 block text-[0.7rem] leading-snug ${checked ? "text-primary-ink/80" : "text-muted"}`}>{o.hint}</span>
               </span>
             </button>
           );
@@ -398,7 +398,7 @@ export function ProjectForm({
             setOpen(true);
             setSubmitted("");
           }}
-          className={`mt-4 grid h-12 w-full place-items-center rounded-full px-7 text-[0.9rem] font-bold text-on-ink transition-[background-color,box-shadow,transform] duration-500 ease-[var(--ease-out-soft)] active:scale-[0.96] active:duration-100 sm:w-auto ${
+          className={`mt-4 grid h-12 w-full place-items-center rounded-full px-7 text-[0.9rem] font-semibold text-on-ink transition-[background-color,box-shadow,transform] duration-500 ease-[var(--ease-out-soft)] active:scale-[0.96] active:duration-100 sm:w-auto ${
             celebrating
               ? "bg-success shadow-[0_8px_24px_-8px_rgb(21_128_61/0.55)]"
               : "bg-foreground hover:bg-primary-ink"
@@ -461,12 +461,12 @@ export function ProjectForm({
     >
       <div className="flex items-start justify-between gap-4">
         <p className="text-[0.8rem] text-muted">
-          Fields marked <span className="font-bold text-orange">*</span> are required.
+          Fields marked <span className="font-semibold text-orange">*</span> are required.
         </p>
         {attachTo ? (
           <Link
             href="/dashboard"
-            className="-mr-2 -mt-2 inline-flex min-h-11 shrink-0 items-center rounded-full px-4 text-[0.8rem] font-bold text-muted hover:bg-surface hover:text-foreground"
+            className="-mr-2 -mt-2 inline-flex min-h-11 shrink-0 items-center rounded-full px-4 text-[0.8rem] font-semibold text-muted hover:bg-surface hover:text-foreground"
           >
             Cancel
           </Link>
@@ -477,7 +477,7 @@ export function ProjectForm({
               setOpen(false);
               setKind(null);
             }}
-            className="-mr-2 -mt-2 min-h-11 shrink-0 rounded-full px-4 text-[0.8rem] font-bold text-muted hover:bg-surface hover:text-foreground"
+            className="-mr-2 -mt-2 min-h-11 shrink-0 rounded-full px-4 text-[0.8rem] font-semibold text-muted hover:bg-surface hover:text-foreground"
           >
             Cancel
           </button>
@@ -502,12 +502,12 @@ export function ProjectForm({
                     setBrandId(b.id);
                     setBrandError("");
                   }}
-                  className={`pressable min-h-11 rounded-full border px-4 text-[0.8rem] font-bold ${
+                  className={`pressable min-h-11 rounded-full border px-4 text-[0.8rem] font-semibold ${
                     checked
-                      ? "border-foreground bg-foreground text-on-ink"
+                      ? "border-primary/40 bg-primary/[0.12] text-primary-ink"
                       : brandError
-                        ? "border-orange/60 bg-card text-foreground"
-                        : "border-line bg-card text-foreground hover:border-foreground/30"
+                        ? "border-orange/60 bg-surface text-foreground"
+                        : "border-transparent bg-surface text-foreground hover:border-line"
                   }`}
                 >
                   {b.name || "Untitled brand"}
@@ -521,7 +521,7 @@ export function ProjectForm({
       {kind && !attachTo && (
       <div data-field="projectName">
         <label htmlFor="projectName" className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3">
-          <span className="text-[0.85rem] font-bold text-foreground">
+          <span className="text-[0.85rem] font-semibold text-foreground">
             Project name<span className="ml-0.5 text-orange">*</span>
           </span>
           <FieldError id="err-projectName" message={nameError} />
@@ -537,7 +537,7 @@ export function ProjectForm({
           placeholder="e.g. Spring launch video"
           aria-invalid={Boolean(nameError) || undefined}
           aria-describedby={nameError ? "err-projectName" : undefined}
-          className={`${inputClass} ${nameError ? "border-orange/70" : "border-line"}`}
+          className={`${inputClass} ${nameError ? "border-orange/70" : "border-transparent"}`}
         />
       </div>
       )}
@@ -552,7 +552,7 @@ export function ProjectForm({
       {/* Drive link */}
       <div data-field="driveLink">
         <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3">
-          <label htmlFor="driveLink-0" className="text-[0.85rem] font-bold text-foreground">
+          <label htmlFor="driveLink-0" className="text-[0.85rem] font-semibold text-foreground">
             Your footage<span className="ml-0.5 text-orange">*</span>
           </label>
           <FieldError id="err-driveLink" message={errors.driveLink} />
@@ -576,14 +576,14 @@ export function ProjectForm({
                 placeholder="https://drive.google.com/…"
                 aria-invalid={Boolean(errors.driveLink) || undefined}
                 aria-describedby={`hint-driveLink${errors.driveLink ? " err-driveLink" : ""}`}
-                className={`${inputClass} ${errors.driveLink ? "border-orange/70" : "border-line"}`}
+                className={`${inputClass} ${errors.driveLink ? "border-orange/70" : "border-transparent"}`}
               />
               {values.driveLinks.length > 1 && (
                 <button
                   type="button"
                   aria-label={`Remove footage link ${i + 1}`}
                   onClick={() => set("driveLinks", values.driveLinks.filter((_, j) => j !== i))}
-                  className="pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line text-muted hover:text-foreground"
+                  className="pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-surface text-muted hover:text-foreground"
                 >
                   <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                     <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
@@ -597,7 +597,7 @@ export function ProjectForm({
           <button
             type="button"
             onClick={() => set("driveLinks", [...values.driveLinks, ""])}
-            className="mt-1.5 min-h-11 rounded-full px-1 text-[0.8rem] font-bold text-primary-ink hover:underline"
+            className="mt-1.5 min-h-11 rounded-full px-1 text-[0.8rem] font-semibold text-primary-ink hover:underline"
           >
             + Add another link
           </button>
@@ -620,8 +620,8 @@ export function ProjectForm({
                 type="button"
                 aria-pressed={checked}
                 onClick={() => set("deadline", q.value)}
-                className={`pressable min-h-11 rounded-full border px-4 text-[0.8rem] font-bold ${
-                  checked ? "border-foreground bg-foreground text-on-ink" : "border-line bg-card text-foreground hover:border-foreground/30"
+                className={`pressable min-h-11 rounded-full border px-4 text-[0.8rem] font-semibold ${
+                  checked ? "border-primary/40 bg-primary/[0.12] text-primary-ink" : "border-transparent bg-surface text-foreground hover:border-line"
                 }`}
               >
                 {q.label}
@@ -629,7 +629,7 @@ export function ProjectForm({
             );
           })}
         </div>
-        <label htmlFor="deadline" className="mt-3 flex min-h-12 items-center gap-3 rounded-xl border border-line bg-card px-3.5 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
+        <label htmlFor="deadline" className="mt-3 flex min-h-12 items-center gap-3 rounded-xl border border-transparent bg-surface px-3.5 focus-within:bg-card focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
           <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
             <rect x="2" y="3" width="12" height="11" rx="2.5" />
             <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" strokeLinecap="round" />
@@ -689,7 +689,7 @@ export function ProjectForm({
               placeholder="Describe the format"
               aria-invalid={Boolean(errors.formatOther) || undefined}
               aria-describedby={errors.formatOther ? "err-formatOther" : undefined}
-              className={`${inputClass} ${errors.formatOther ? "border-orange/70" : "border-line"}`}
+              className={`${inputClass} ${errors.formatOther ? "border-orange/70" : "border-transparent"}`}
             />
             <div className="mt-1.5">
               <FieldError id="err-formatOther" message={errors.formatOther} />
@@ -737,12 +737,12 @@ export function ProjectForm({
                 role="radio"
                 aria-checked={checked}
                 onClick={() => set("hookCount", n)}
-                className={`pressable flex min-h-12 flex-col items-center justify-center rounded-xl py-1.5 text-[0.85rem] font-bold leading-tight ${
-                  checked ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted hover:text-foreground"
+                className={`pressable flex min-h-12 flex-col items-center justify-center rounded-xl py-1.5 text-[0.85rem] font-semibold leading-tight ${
+                  checked ? "bg-thumb text-foreground shadow-[0_1px_2px_rgb(0_0_0/0.08),0_2px_8px_-2px_rgb(0_0_0/0.12)] ring-1 ring-black/[0.04]" : "text-muted hover:text-foreground"
                 }`}
               >
                 {n === 1 ? "1 hook" : `${n} hooks`}
-                <span className={`text-[0.66rem] font-bold ${n === 1 ? "text-muted" : "text-orange-ink"}`}>
+                <span className={`text-[0.66rem] font-semibold ${n === 1 ? "text-muted" : "text-orange-ink"}`}>
                   {n === 1 ? "Included" : "Extra cost"}
                 </span>
               </button>
@@ -808,7 +808,7 @@ export function ProjectForm({
                   type="button"
                   aria-label={`Remove link ${i + 1}`}
                   onClick={() => set("referenceLinks", values.referenceLinks.filter((_, j) => j !== i))}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line text-muted hover:text-foreground"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-surface text-muted hover:text-foreground"
                 >
                   <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                     <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
@@ -822,7 +822,7 @@ export function ProjectForm({
           <button
             type="button"
             onClick={() => set("referenceLinks", [...values.referenceLinks, ""])}
-            className="mt-1.5 min-h-11 rounded-full px-1 text-[0.8rem] font-bold text-primary-ink hover:underline"
+            className="mt-1.5 min-h-11 rounded-full px-1 text-[0.8rem] font-semibold text-primary-ink hover:underline"
           >
             + Add another link
           </button>
@@ -831,7 +831,7 @@ export function ProjectForm({
 
       {/* Notes */}
       <div>
-        <label htmlFor="notes" className="mb-2.5 block text-[0.85rem] font-bold text-foreground">
+        <label htmlFor="notes" className="mb-2.5 block text-[0.85rem] font-semibold text-foreground">
           Notes <span className="ml-1 text-[0.75rem] font-normal text-muted">Optional</span>
         </label>
         <textarea
@@ -841,7 +841,7 @@ export function ProjectForm({
           value={values.notes}
           onChange={(e) => set("notes", e.target.value)}
           placeholder="Anything else we should know?"
-          className="w-full resize-y rounded-xl border border-line bg-card px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]"
+          className="w-full resize-y rounded-xl border border-transparent bg-surface px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]"
         />
       </div>
 
@@ -854,7 +854,7 @@ export function ProjectForm({
         </p>
       )}
       {Object.values(kind === "script" ? scriptErrors : errors).some(Boolean) && (
-        <p role="alert" className="text-center text-[0.8rem] font-bold text-orange-ink">
+        <p role="alert" className="text-center text-[0.8rem] font-semibold text-orange-ink">
           Please fix the highlighted fields above.
         </p>
       )}
@@ -863,7 +863,7 @@ export function ProjectForm({
       <button
         type="submit"
         disabled={pending}
-        className="pressable flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-bold text-on-ink hover:bg-primary-ink disabled:cursor-wait disabled:opacity-70"
+        className="pressable flex h-13 w-full items-center justify-center gap-2 rounded-full bg-foreground text-[0.95rem] font-semibold text-on-ink hover:bg-primary-ink disabled:cursor-wait disabled:opacity-70"
       >
         {pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-on-ink/30 border-t-on-ink" aria-hidden />}
         {pending ? "Sending…" : kind === "script" ? "Send script" : attachTo ? "Send footage" : "Done"}
@@ -887,7 +887,7 @@ function ScriptFields({
     <>
       <div data-field="script">
         <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3">
-          <label htmlFor="scriptText" className="text-[0.85rem] font-bold text-foreground">
+          <label htmlFor="scriptText" className="text-[0.85rem] font-semibold text-foreground">
             Your script<span className="ml-0.5 text-orange">*</span>
           </label>
           <FieldError id="err-script" message={errors.script} />
@@ -901,11 +901,11 @@ function ScriptFields({
           placeholder="Paste your script here…"
           aria-invalid={Boolean(errors.script) || undefined}
           aria-describedby={errors.script ? "err-script" : undefined}
-          className={`w-full resize-y rounded-xl border bg-card px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem] ${
-            errors.script ? "border-orange/70" : "border-line"
+          className={`w-full resize-y rounded-xl border bg-surface px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem] ${
+            errors.script ? "border-orange/70" : "border-transparent"
           }`}
         />
-        <label htmlFor="scriptLink" className="mb-2 mt-3 block text-[0.75rem] font-bold text-muted">
+        <label htmlFor="scriptLink" className="mb-2 mt-3 block text-[0.75rem] font-semibold text-muted">
           Or link to it
         </label>
         <input
@@ -917,7 +917,7 @@ function ScriptFields({
           value={value.link}
           onChange={(e) => onChange("link", e.target.value)}
           placeholder="https://docs.google.com/…"
-          className={`${inputClass} ${errors.script ? "border-orange/70" : "border-line"}`}
+          className={`${inputClass} ${errors.script ? "border-orange/70" : "border-transparent"}`}
         />
         <p className="mt-2 text-[0.75rem] leading-relaxed text-muted">
           A Google Doc or a file in your Drive — set it to ‘Anyone with the link can edit’ so we can work in it.
@@ -948,7 +948,7 @@ function ScriptFields({
       </div>
 
       <div>
-        <label htmlFor="scriptNotes" className="mb-2.5 block text-[0.85rem] font-bold text-foreground">
+        <label htmlFor="scriptNotes" className="mb-2.5 block text-[0.85rem] font-semibold text-foreground">
           Notes <span className="ml-1 text-[0.75rem] font-normal text-muted">Optional</span>
         </label>
         <textarea
@@ -958,7 +958,7 @@ function ScriptFields({
           value={value.notes}
           onChange={(e) => onChange("notes", e.target.value)}
           placeholder="Tone, audience, the offer for the CTA…"
-          className="w-full resize-y rounded-xl border border-line bg-card px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]"
+          className="w-full resize-y rounded-xl border border-transparent bg-surface px-3.5 py-3 text-base leading-relaxed placeholder:text-muted/60 focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/10 sm:text-[0.9rem]"
         />
       </div>
 
@@ -992,7 +992,7 @@ function CountPicker({
 }) {
   return (
     <div>
-      <p className="mb-1.5 text-[0.75rem] font-bold text-muted">{label}</p>
+      <p className="mb-1.5 text-[0.75rem] font-semibold text-muted">{label}</p>
       <div
         role="radiogroup"
         aria-label={label}
@@ -1007,13 +1007,13 @@ function CountPicker({
               role="radio"
               aria-checked={checked}
               onClick={() => onChange(n)}
-              className={`pressable flex min-h-12 flex-col items-center justify-center rounded-xl py-1.5 text-[0.85rem] font-bold leading-tight ${
-                checked ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted hover:text-foreground"
+              className={`pressable flex min-h-12 flex-col items-center justify-center rounded-xl py-1.5 text-[0.85rem] font-semibold leading-tight ${
+                checked ? "bg-thumb text-foreground shadow-[0_1px_2px_rgb(0_0_0/0.08),0_2px_8px_-2px_rgb(0_0_0/0.12)] ring-1 ring-black/[0.04]" : "text-muted hover:text-foreground"
               }`}
             >
               {n === 0 ? "None" : n}
               {n > 0 && (
-                <span className={`text-[0.62rem] font-bold ${n > SCRIPT_INCLUDED ? "text-orange-ink" : "text-muted"}`}>
+                <span className={`text-[0.62rem] font-semibold ${n > SCRIPT_INCLUDED ? "text-orange-ink" : "text-muted"}`}>
                   {n > SCRIPT_INCLUDED ? "Extra cost" : "Included"}
                 </span>
               )}

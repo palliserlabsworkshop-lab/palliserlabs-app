@@ -28,7 +28,7 @@ export function FeedbackThread({ taskId, label = "Feedback on this video" }: { t
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex min-h-12 w-full items-center justify-between px-5 text-[0.8rem] font-bold text-foreground transition-colors hover:bg-surface/60"
+        className="flex min-h-12 w-full items-center justify-between px-5 text-[0.8rem] font-semibold text-foreground transition-colors hover:bg-surface/60"
       >
         {label}
         <svg
