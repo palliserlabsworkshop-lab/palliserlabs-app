@@ -10,6 +10,9 @@ import { isHttpUrl } from "./brief";
 export const SCRIPT_TURNAROUND_LABEL = "2 hrs+";
 export const SCRIPT_MAX_LENGTH = 20_000;
 export const WRITTEN_HOOKS_MAX = 3;
+export const CTAS_MAX = 3;
+/** Included in the base price: one written hook and one call to action. More costs extra. */
+export const SCRIPT_INCLUDED = 1;
 
 export type ScriptRequest = {
   projectName: string;
@@ -17,7 +20,8 @@ export type ScriptRequest = {
   link: string;
   /** Written hooks to add, 0–3. */
   hooks: number;
-  cta: boolean;
+  /** Calls to action to add, 0–3. */
+  ctas: number;
   notes: string;
 };
 
@@ -28,29 +32,38 @@ const str = (value: unknown, max: number) => (typeof value === "string" ? value.
 
 /** Cleans untrusted input (lengths capped) and validates it. */
 export function validateScriptRequest(input: Record<string, unknown>): { request: ScriptRequest; errors: ScriptErrors } {
-  const hooks = Math.round(Number(input.hooks));
+  const count = (value: unknown, max: number) => {
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) ? Math.min(Math.max(n, 0), max) : 0;
+  };
   const request: ScriptRequest = {
     projectName: str(input.projectName, 200),
     text: typeof input.text === "string" ? input.text.replace(/\r\n/g, "\n").trim().slice(0, SCRIPT_MAX_LENGTH) : "",
     link: str(input.link, 1000),
-    hooks: Number.isFinite(hooks) ? Math.min(Math.max(hooks, 0), WRITTEN_HOOKS_MAX) : 0,
-    cta: input.cta === true,
+    hooks: count(input.hooks, WRITTEN_HOOKS_MAX),
+    ctas: count(input.ctas, CTAS_MAX),
     notes: str(input.notes, 1500),
   };
   const errors: ScriptErrors = {};
   if (!request.projectName) errors.projectName = "Give your project a name.";
   if (!request.text && !request.link) errors.script = "Paste your script or add a link to it.";
   else if (request.link && !isHttpUrl(request.link)) errors.script = "The link needs to start with https://";
-  if (!request.hooks && !request.cta) errors.adds = "Pick at least one.";
+  if (!request.hooks && !request.ctas) errors.adds = "Add at least one hook or call to action.";
   return { request, errors };
 }
 
 /** What the client asked us to add, as readable lines. */
-export function scriptAdds(request: Pick<ScriptRequest, "hooks" | "cta">): string[] {
+export function scriptAdds(request: Pick<ScriptRequest, "hooks" | "ctas">): string[] {
   return [
     request.hooks ? (request.hooks > 1 ? `${request.hooks} written hooks` : "1 written hook") : "",
-    request.cta ? "Call to action" : "",
+    request.ctas ? (request.ctas > 1 ? `${request.ctas} calls to action` : "1 call to action") : "",
+    isExtraCost(request) ? "⚠️ Extra cost — more than 1 hook / 1 CTA" : "",
   ].filter(Boolean);
+}
+
+/** True when the request goes beyond the included 1 hook + 1 CTA. */
+export function isExtraCost(request: Pick<ScriptRequest, "hooks" | "ctas">): boolean {
+  return request.hooks > SCRIPT_INCLUDED || request.ctas > SCRIPT_INCLUDED;
 }
 
 export type ScriptKind = "queued" | "review" | "changes" | "approved";

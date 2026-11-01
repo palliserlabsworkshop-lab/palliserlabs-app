@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { addFootageAction, submitProject, submitScript } from "@/app/actions";
 import {
+  CTAS_MAX,
+  SCRIPT_INCLUDED,
   SCRIPT_MAX_LENGTH,
+  isExtraCost,
   SCRIPT_TURNAROUND_LABEL,
   WRITTEN_HOOKS_MAX,
   validateScriptRequest,
@@ -144,7 +147,7 @@ function ChipGroup({
 
 const SCRIPT_FIELD_ORDER: ScriptField[] = ["projectName", "script", "adds"];
 
-const EMPTY_SCRIPT = { text: "", link: "", hooks: 0, cta: false, notes: "" };
+const EMPTY_SCRIPT = { text: "", link: "", hooks: 1, ctas: 1, notes: "" };
 
 type Kind = "script" | "video";
 
@@ -278,7 +281,7 @@ export function ProjectForm({
 
   const setScriptValue = <K extends keyof typeof EMPTY_SCRIPT>(key: K, value: (typeof EMPTY_SCRIPT)[K]) => {
     setScript((v) => ({ ...v, [key]: value }));
-    const field: ScriptField = key === "hooks" || key === "cta" ? "adds" : key === "text" || key === "link" ? "script" : "projectName";
+    const field: ScriptField = key === "hooks" || key === "ctas" ? "adds" : key === "text" || key === "link" ? "script" : "projectName";
     setScriptErrors((e) => {
       if (!(field in e)) return e;
       const next = { ...e };
@@ -880,20 +883,6 @@ function ScriptFields({
   errors: ScriptErrors;
   onChange: <K extends keyof typeof EMPTY_SCRIPT>(key: K, value: (typeof EMPTY_SCRIPT)[K]) => void;
 }) {
-  const toggle = (on: boolean) =>
-    `pressable inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-[0.8rem] font-bold ${
-      on
-        ? "border-foreground bg-foreground text-on-ink"
-        : errors.adds
-          ? "border-orange/60 bg-card text-foreground"
-          : "border-line bg-card text-foreground hover:border-foreground/30"
-    }`;
-  const check = (
-    <svg viewBox="0 0 16 16" className="h-3 w-3 animate-pop" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
-      <path d="M3.5 8.5l3 3 6-7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-
   return (
     <>
       <div data-field="script">
@@ -936,41 +925,26 @@ function ScriptFields({
       </div>
 
       <div data-field="adds">
-        <GroupHeader label="What should we add?" required hint="Pick at least 1" error={errors.adds} errorId="err-adds" />
-        <div className="flex flex-wrap gap-2" role="group" aria-describedby={errors.adds ? "err-adds" : undefined}>
-          <button type="button" aria-pressed={value.hooks > 0} onClick={() => onChange("hooks", value.hooks > 0 ? 0 : 1)} className={toggle(value.hooks > 0)}>
-            {value.hooks > 0 && check}
-            Written hook{value.hooks > 1 ? "s" : ""}
-          </button>
-          <button type="button" aria-pressed={value.cta} onClick={() => onChange("cta", !value.cta)} className={toggle(value.cta)}>
-            {value.cta && check}
-            Call to action
-          </button>
+        <GroupHeader label="What should we add?" required error={errors.adds} errorId="err-adds" />
+        <div className="space-y-3" aria-describedby={errors.adds ? "err-adds" : undefined}>
+          <CountPicker label="Written hooks" value={value.hooks} max={WRITTEN_HOOKS_MAX} invalid={Boolean(errors.adds)} onChange={(n) => onChange("hooks", n)} />
+          <CountPicker label="Calls to action" value={value.ctas} max={CTAS_MAX} invalid={Boolean(errors.adds)} onChange={(n) => onChange("ctas", n)} />
         </div>
-        {value.hooks > 0 && (
-          <div className="mt-3 animate-rise">
-            <p className="mb-2 text-[0.75rem] font-bold text-muted">How many hooks?</p>
-            <div role="radiogroup" aria-label="Number of written hooks" className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1">
-              {Array.from({ length: WRITTEN_HOOKS_MAX }, (_, i) => i + 1).map((n) => {
-                const checked = value.hooks === n;
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    role="radio"
-                    aria-checked={checked}
-                    onClick={() => onChange("hooks", n)}
-                    className={`pressable min-h-11 rounded-xl text-[0.85rem] font-bold ${
-                      checked ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted hover:text-foreground"
-                    }`}
-                  >
-                    {n === 1 ? "1 hook" : `${n} hooks`}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <p
+          key={isExtraCost(value) ? "paid" : "free"}
+          className={`mt-2.5 animate-rise rounded-xl px-3.5 py-2.5 text-[0.75rem] leading-relaxed ${
+            isExtraCost(value) ? "bg-orange/10 text-orange-ink" : "text-muted"
+          }`}
+        >
+          {isExtraCost(value) ? (
+            <>
+              <strong>Additional charges apply.</strong> Each extra hook or call to action is billed on top of your project.
+              We’ll confirm the cost with you before we start.
+            </>
+          ) : (
+            "1 written hook and 1 call to action are included. Add more to test different versions (extra cost)."
+          )}
+        </p>
       </div>
 
       <div>
@@ -999,5 +973,54 @@ function ScriptFields({
         </span>
       </p>
     </>
+  );
+}
+
+/** None / 1 / 2 / 3 picker for the script step. 1 is included; more is marked as extra cost. */
+function CountPicker({
+  label,
+  value,
+  max,
+  invalid,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  invalid?: boolean;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-[0.75rem] font-bold text-muted">{label}</p>
+      <div
+        role="radiogroup"
+        aria-label={label}
+        className={`grid grid-cols-4 gap-1 rounded-2xl bg-surface p-1 ${invalid ? "ring-1 ring-orange/60" : ""}`}
+      >
+        {Array.from({ length: max + 1 }, (_, n) => n).map((n) => {
+          const checked = value === n;
+          return (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              onClick={() => onChange(n)}
+              className={`pressable flex min-h-12 flex-col items-center justify-center rounded-xl py-1.5 text-[0.85rem] font-bold leading-tight ${
+                checked ? "bg-card text-foreground shadow-sm ring-1 ring-line" : "text-muted hover:text-foreground"
+              }`}
+            >
+              {n === 0 ? "None" : n}
+              {n > 0 && (
+                <span className={`text-[0.62rem] font-bold ${n > SCRIPT_INCLUDED ? "text-orange-ink" : "text-muted"}`}>
+                  {n > SCRIPT_INCLUDED ? "Extra cost" : "Included"}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

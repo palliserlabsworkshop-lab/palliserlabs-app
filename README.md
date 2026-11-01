@@ -46,7 +46,7 @@ The app reads each database's schema at runtime, so property types are flexible:
   - The answers are saved in `Brief Data` as JSON option keys (e.g. `talking_head`), so the labels in `src/lib/brief.ts` can change without breaking old data.
   - A readable copy of the brief is written into the Notion page body for the editor.
   - Clients can open each project's brief from its task card in the app.
-- **Script step (optional)**: under New project, a client can pick *Start with my script*. They paste their script or link a Google Doc, and choose what to add: written hook(s) (1–3) and/or a call to action. Scripts are promised in "2 hrs+".
+- **Script step (optional)**: under New project, a client can pick *Start with my script*. They paste their script or link a Google Doc, and choose how many written hooks and calls to action to add (0–3 each). 1 hook + 1 CTA is included; more shows an extra-cost note and is flagged "⚠️ Extra cost" in the page body. Scripts are promised in "2 hrs+".
   - This creates a ✍️ task with `Script status` *Queued* and an empty video `Status`. Their script goes into `Script` (Text) and `Script Link` (URL), and their original stays in the page body.
   - Edit `Script` (or the linked doc) into the final version, then set `Script status` to *Ready for review*. The client can read it, copy it, download it as .txt, or open the Google Doc, and then approve it or request changes. A change request sets *Changes requested* and is posted as a comment.
   - Once the script is approved, the same project asks the client for footage (`/dashboard/projects/:id/footage`). That adds the video brief to the same row and sets `Status` to *Queued*, and from there it follows the normal video flow. For a script-only job, set `Status` to Done.
