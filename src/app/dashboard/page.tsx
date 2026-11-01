@@ -12,35 +12,9 @@ import { scopeBrands } from "@/lib/scope";
 import { awaitingFootage, needsClient, reviewStage, scriptInReview } from "@/lib/review";
 import { getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
 import { getViewer } from "@/lib/viewer";
+import { Section } from "@/components/Section";
 
 export const metadata: Metadata = { title: "Dashboard — Palliser Labs" };
-
-function Section({
-  id,
-  title,
-  children,
-  aside,
-  delay = 0,
-  subtitle,
-}: {
-  id: string;
-  title: string;
-  children: React.ReactNode;
-  aside?: string;
-  delay?: number;
-  subtitle?: string;
-}) {
-  return (
-    <section id={id} className="mt-14 animate-rise sm:mt-16" style={{ animationDelay: `${delay}ms` }}>
-      <div className="mb-4 flex items-baseline justify-between gap-4 px-1">
-        <h2 className="font-display text-[1.4rem] font-medium tracking-[-0.01em] sm:text-[1.6rem]">{title}</h2>
-        {aside && <span className="text-[0.75rem] text-muted">{aside}</span>}
-      </div>
-      {subtitle && <p className="-mt-2 mb-4 px-1 text-[0.85rem] text-muted">{subtitle}</p>}
-      {children}
-    </section>
-  );
-}
 
 async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: string | string[] }> }) {
   const viewer = await getViewer();
@@ -101,6 +75,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
 
       <Section
         id="review"
+        icon="review"
         title={toReview ? "Ready for your review" : footageDue ? "Waiting on you" : "For review"}
         delay={60}
         subtitle={
@@ -131,19 +106,19 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
         )}
       </Section>
 
-      <Section id="tasks" title="Tasks" delay={80}>
+      <Section id="tasks" title="Tasks" icon="tasks" delay={80}>
         <ScopedTasks allTasks={tasks} boardTasks={boardTasks} />
       </Section>
 
-      <Section id="new-project" title="New project" delay={160}>
+      <Section id="new-project" title="New project" icon="newProject" delay={160}>
         <ScopedProjectForm />
       </Section>
 
-      <Section id="documents" title="Documents" delay={240} aside={!multi && files.length ? `${files.length} shared` : undefined}>
+      <Section id="documents" title="Documents" icon="documents" delay={240} aside={!multi && files.length ? `${files.length} shared` : undefined}>
         <ScopedFiles files={files} />
       </Section>
 
-      <Section id="messages" title="Messages" delay={320} subtitle={multi ? "Your direct line to the Palliser Labs team — for all your brands." : "Your direct line to the Palliser Labs team."}>
+      <Section id="messages" title="Messages" icon="messages" delay={320} subtitle={multi ? "Your direct line to the Palliser Labs team — for all your brands." : "Your direct line to the Palliser Labs team."}>
         <Comments initial={comments ?? []} initialError={comments === null} />
       </Section>
     </BrandScopeProvider>

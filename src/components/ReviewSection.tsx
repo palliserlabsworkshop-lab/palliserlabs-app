@@ -181,7 +181,7 @@ function ReviewCard({ task, brandName }: { task: Task; brandName?: string }) {
       <article className="card animate-rise overflow-hidden">
         {header}
         <div className="px-5 pb-5 pt-4">
-          <div className="flex items-center gap-3 rounded-2xl bg-primary/10 p-4 text-primary-ink">
+          <div className="flex items-center gap-3 rounded-2xl bg-success/10 p-4 text-success">
             <Tick />
             <div>
               <p className="text-[0.85rem] font-semibold">Approved — your final cut is ready</p>

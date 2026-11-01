@@ -6,7 +6,7 @@
    variables, so this is the only place you need to change colours.
    ========================================================================= */
 :root {
-  --brand-primary: #8f52f8;      /* Primary colour — brand purple (also means "Done") */
+  --brand-primary: #8f52f8;      /* Primary colour — brand purple: selected / tappable things */
   --brand-accent: #38b6ff;       /* Accent colour — light blue (also means "In Progress") */
   --brand-background: #f6f6f8;   /* Page background — soft grey behind white cards */
   --brand-text: #111111;         /* Main text colour (ink) — also used for main buttons */
@@ -14,7 +14,7 @@
   /* Supporting brand colours (from the Palliser Labs palette) */
   --brand-yellow: #febd59;       /* Also means "Queued" */
   --brand-orange: #ff914c;       /* Warnings — overdue, form errors; required-field asterisks */
-  --brand-success: #15803d;      /* Success flash on "Start a new project" — 5.0:1 with white text */
+  --brand-success: #15803d;      /* Done / approved, and success flashes — 5.0:1 with white text */
   --brand-card: #ffffff;         /* Cards and panels */
   --brand-muted: #5f5f6b;        /* Secondary text — 6.3:1 on white */
   --brand-surface: #f1f1f4;      /* Subtle fills inside cards */
