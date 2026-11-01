@@ -68,6 +68,8 @@ export const HIDE_DONE_AFTER_DAYS = 30;
 
 /** Status given to projects submitted from the portal. Must exist as an option in Notion. */
 export const NEW_PROJECT_STATUS = "Queued";
+/** Status for a project still in its script step (no footage yet), so it shows in your pipeline. */
+export const SCRIPT_STAGE_STATUS = "Script";
 
 export const FILE_PROPS = {
   name: "File name",

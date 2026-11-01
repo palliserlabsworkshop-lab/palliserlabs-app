@@ -25,6 +25,7 @@ import {
   FILE_PROPS,
   HIDE_DONE_AFTER_DAYS,
   NEW_PROJECT_STATUS,
+  SCRIPT_STAGE_STATUS,
   SCRIPT_STATUS,
   TASK_PROPS,
   TWEAKS_STATUS,
@@ -860,7 +861,7 @@ function scriptBlocks(request: ScriptRequest) {
   ];
 }
 
-/** Starts a project with the script step: Script status Queued, video Status left empty until footage arrives. */
+/** Starts a project with the script step: Script status Queued, video Status "Script" until footage arrives. */
 export async function createScriptProject(actor: Actor, brandId: string, request: ScriptRequest): Promise<ProjectResult> {
   const cols = await taskColumns();
   const scriptName = cols.col(TASK_PROPS.script);
@@ -871,6 +872,9 @@ export async function createScriptProject(actor: Actor, brandId: string, request
     [cols.client]: { relation: [{ id: brandId }] },
   };
   const optional: Props = { ...requestedByProp(cols, actor) };
+  // The video Status shows "Script" until footage arrives (then addFootage sets Queued).
+  const stage = optionValue(cols.type(cols.status), SCRIPT_STAGE_STATUS);
+  if (stage) optional[cols.status] = stage;
   const status = optionValue(cols.type(statusName), SCRIPT_STATUS.queued);
   if (status) essentials[statusName] = status;
   if (cols.type(scriptName) === "rich_text" && request.text) optional[scriptName] = { rich_text: chunkText(request.text) };
