@@ -89,12 +89,15 @@ function Column({
   empty,
   children,
   brandNames,
+  wide = false,
 }: {
   title: string;
   tasks: Task[];
   empty: string;
   children?: React.ReactNode;
   brandNames?: Record<string, string>;
+  /** Full width: cards sit two-up on larger screens. */
+  wide?: boolean;
 }) {
   return (
     <div className="min-w-0">
@@ -103,7 +106,7 @@ function Column({
         <span className="ml-auto text-[0.8rem] font-semibold tabular-nums text-foreground">{tasks.length}</span>
       </div>
       {tasks.length ? (
-        <ul className="space-y-2.5">
+        <ul className={wide ? "grid gap-2.5 sm:grid-cols-2" : "space-y-2.5"}>
           {tasks.map((task) => (
             <TaskCard key={task.id} task={task} brandName={task.brandId ? brandNames?.[task.brandId] : undefined} />
           ))}
@@ -178,10 +181,36 @@ export function TaskBoard({ tasks, brandNames }: { tasks: Task[]; brandNames?: R
   const done = tasks.filter((t) => t.done && !t.archived).reverse();
   const archived = tasks.filter((t) => t.archived).reverse();
 
+  // Two columns only when both have something in them; otherwise the one that does gets the full width.
+  const hasFinished = done.length > 0 || archived.length > 0;
+  if (!hasFinished || !active.length) {
+    return (
+      <div className="space-y-6">
+        {(active.length > 0 || !hasFinished) && (
+          <Column title="In Progress" tasks={active} empty="Nothing in progress right now." brandNames={brandNames} wide />
+        )}
+        {hasFinished && (
+          <Column title="Completed" tasks={done} empty="Nothing finished recently." brandNames={brandNames} wide>
+            <ArchiveList archived={archived} brandNames={brandNames} />
+          </Column>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-5">
       <Column title="In Progress" tasks={active} empty="Nothing in progress right now." brandNames={brandNames} />
       <Column title="Completed" tasks={done} empty="Finished work will appear here." brandNames={brandNames}>
+        <ArchiveList archived={archived} brandNames={brandNames} />
+      </Column>
+    </div>
+  );
+}
+
+function ArchiveList({ archived, brandNames }: { archived: Task[]; brandNames?: Record<string, string> }) {
+  return (
+    <>
         {archived.length > 0 && (
           <details className="group mt-3">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 px-1 text-[0.75rem] font-semibold text-muted hover:text-foreground">
@@ -204,7 +233,6 @@ export function TaskBoard({ tasks, brandNames }: { tasks: Task[]; brandNames?: R
             </ul>
           </details>
         )}
-      </Column>
-    </div>
+    </>
   );
 }

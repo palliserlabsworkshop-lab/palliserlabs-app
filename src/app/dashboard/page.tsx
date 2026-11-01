@@ -101,7 +101,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
 
       <Section
         id="review"
-        title={toReview ? "Ready for your review" : footageDue ? "Waiting on you" : "Your videos"}
+        title={toReview ? "Ready for your review" : footageDue ? "Waiting on you" : "For review"}
         delay={60}
         subtitle={
           toReview
