@@ -327,6 +327,8 @@ export type PersonProfile = {
   credentialTag: string;
   /** Signed in with a temporary code: must choose their own PIN before using the app. */
   needsSetup: boolean;
+  /** Opted in to promotional emails. */
+  marketing: boolean;
 };
 
 function toPerson(page: PageObjectResponse, schema: Schema): PersonProfile {
@@ -338,6 +340,7 @@ function toPerson(page: PageObjectResponse, schema: Schema): PersonProfile {
     wantsPersonalBrand: getCheckbox(page, PERSON_PROPS.personalBrand),
     credentialTag: credentialTag(page),
     needsSetup: storedCredential(page)?.kind !== "pin",
+    marketing: getCheckbox(page, PERSON_PROPS.marketing),
   };
 }
 
@@ -432,13 +435,37 @@ export async function confirmCurrentPin(personId: string, password: string): Pro
   return page ? attemptPin(page, password) : { status: "wrong" };
 }
 
+/** Opt-in tick box plus the date it was given (the record of consent); both cleared on opt-out. */
+function marketingProps(schema: Schema, on: boolean): Record<string, unknown> {
+  const names = Object.keys(schema);
+  const props: Record<string, unknown> = {};
+  const box = resolveName(names, PERSON_PROPS.marketing);
+  if (schema[box] === "checkbox") props[box] = { checkbox: on };
+  const date = resolveName(names, PERSON_PROPS.marketingDate);
+  if (schema[date] === "date") props[date] = { date: on ? { start: new Date().toISOString() } : null };
+  return props;
+}
+
+/** The client switching promotional emails on or off from their Account page. */
+export async function setMarketingPreference(personId: string, on: boolean): Promise<boolean> {
+  const page = await loadRowOf(env.peopleDbId, personId);
+  if (!page) return false;
+  const props = marketingProps((await dataSource(env.peopleDbId)).schema, on);
+  if (!Object.keys(props).length) return false;
+  await notion().pages.update({ page_id: page.id, properties: props as Parameters<Client["pages"]["update"]>[0]["properties"] });
+  return true;
+}
+
 export type LoginChange = { ok: true; person: PersonProfile } | { ok: false; error: string };
 
 /**
  * Saves a new PIN (hashed) and/or email on the person's People row and returns their refreshed
  * profile (so the current device can stay signed in while every other session is signed out).
  */
-export async function updateLoginDetails(personId: string, change: { pin?: string; email?: string }): Promise<LoginChange> {
+export async function updateLoginDetails(
+  personId: string,
+  change: { pin?: string; email?: string; marketing?: boolean },
+): Promise<LoginChange> {
   const page = await loadRowOf(env.peopleDbId, personId);
   if (!page) return { ok: false, error: "We couldn’t find your account." };
   const ds = await dataSource(env.peopleDbId);
@@ -461,6 +488,7 @@ export async function updateLoginDetails(personId: string, change: { pin?: strin
     if (ds.schema[pinName] !== "rich_text") return { ok: false, error: "Your PIN can’t be changed right now." };
     properties[pinName] = { rich_text: chunkText(await hashPin(change.pin)) };
   }
+  if (change.marketing !== undefined) Object.assign(properties, marketingProps(ds.schema, change.marketing));
   if (!Object.keys(properties).length) return { ok: false, error: "Nothing to change." };
 
   const updated = await notion().pages.update({

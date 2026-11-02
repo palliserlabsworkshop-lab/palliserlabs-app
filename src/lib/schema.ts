@@ -51,6 +51,8 @@ export const PERSON_PROPS = {
   personalBrand: "Personal brand", // Checkbox — when ticked, the app creates and shows their personal brand
   failedLogins: "Failed logins", // Number — set by the app: wrong PINs in a row (resets on success)
   lockedUntil: "Locked until", // Date — set by the app after repeated wrong PINs; clear it to unlock
+  marketing: "Marketing emails", // Checkbox — the client's own opt-in to promotional emails (unticked by default)
+  marketingDate: "Marketing consent date", // Date — when they opted in (record of consent); cleared on opt-out
 } as const;
 
 /** Login lockout: after this many wrong PINs in a row, the account is locked for a while. */

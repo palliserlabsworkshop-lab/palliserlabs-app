@@ -9,7 +9,7 @@ import { getSession, sameTag } from "./session";
  * This is the single access gate: unlinking a brand (or setting a person or brand Inactive)
  * in Notion takes effect on the next request. Their Messages thread is their own People row.
  */
-export type Viewer = Actor & { brands: Brand[]; needsSetup: boolean };
+export type Viewer = Actor & { brands: Brand[]; needsSetup: boolean; marketing: boolean };
 
 const loadViewer = cache(async (): Promise<Viewer | null> => {
   const session = await getSession();
@@ -46,6 +46,7 @@ const loadViewer = cache(async (): Promise<Viewer | null> => {
     brandIds: brands.map((b) => b.id),
     brands,
     needsSetup: person.needsSetup,
+    marketing: person.marketing,
   };
 });
 

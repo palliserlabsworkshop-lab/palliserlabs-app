@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SetupForm } from "@/components/AccountForms";
+import { LegalLinks } from "@/components/Legal";
 import { getViewerForSetup } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Set up your account — Palliser Labs" };
@@ -43,6 +44,7 @@ export default function WelcomePage() {
           </Suspense>
         </div>
         <p className="text-center text-[0.75rem] text-muted">Your PIN is stored securely — even we can’t see it.</p>
+        <LegalLinks className="mt-3" />
       </div>
     </main>
   );

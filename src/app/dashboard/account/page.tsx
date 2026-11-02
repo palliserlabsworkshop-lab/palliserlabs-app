@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
-import { ChangeEmailForm, ChangePinForm } from "@/components/AccountForms";
+import { ChangeEmailForm, ChangePinForm, MarketingToggle } from "@/components/AccountForms";
 import { requireViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Account — Palliser Labs" };
@@ -28,6 +28,15 @@ async function Account() {
         </h2>
         <div className="card p-5 sm:p-6">
           <ChangeEmailForm email={viewer.email} />
+        </div>
+      </section>
+
+      <section className="mt-10" aria-labelledby="emails-heading">
+        <h2 id="emails-heading" className="mb-3 px-1 font-display text-[1.25rem] font-medium">
+          Email preferences
+        </h2>
+        <div className="card p-5 sm:p-6">
+          <MarketingToggle initial={viewer.marketing} />
         </div>
       </section>
 

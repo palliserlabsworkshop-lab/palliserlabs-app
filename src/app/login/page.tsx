@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Logo } from "@/components/Logo";
 import { LoginForm } from "./LoginForm";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LegalLinks } from "@/components/Legal";
 
 export const metadata: Metadata = { title: "Sign in — Palliser Labs" };
 
@@ -31,6 +32,7 @@ export default function LoginPage() {
         <p className="text-center text-[0.75rem] text-muted">
           Trouble signing in? Contact your Palliser Labs project lead.
         </p>
+        <LegalLinks className="mt-3" />
       </div>
     </main>
   );

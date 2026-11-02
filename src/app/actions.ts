@@ -13,7 +13,7 @@ import {
   requestTweaks,
 } from "@/lib/notion";
 import { validateScriptRequest, type ScriptErrors } from "@/lib/script";
-import { confirmCurrentPin, updateLoginDetails } from "@/lib/notion";
+import { confirmCurrentPin, setMarketingPreference, updateLoginDetails } from "@/lib/notion";
 import { pinProblem } from "@/lib/pin-rules";
 import { getViewerForSetup } from "@/lib/viewer";
 import { canUseBrand } from "@/lib/scope";
@@ -198,6 +198,8 @@ export async function setupAccount(_prev: AccountState, formData: FormData): Pro
   const result = await updateLoginDetails(viewer.id, {
     pin,
     ...(email !== viewer.email.toLowerCase() ? { email } : {}),
+    // Promotional emails only with an explicit tick (the box starts unticked).
+    marketing: formData.get("marketing") === "on",
   }).catch((error) => {
     console.error("Account setup failed:", error);
     return { ok: false as const, error: "We couldn’t save that just now. Please try again." };
@@ -247,4 +249,12 @@ export async function changeEmail(_prev: AccountState, formData: FormData): Prom
   if (!result?.ok) return { error: result?.error ?? "We couldn’t save that just now. Please try again.", field: "email" };
   await createSession(result.person.id, result.person.credentialTag);
   return { ok: true };
+}
+
+/** Account page switch for promotional emails. Service emails (reviews, messages) aren't affected. */
+export async function setMarketingAction(on: boolean): Promise<{ ok: boolean }> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  const ok = await setMarketingPreference(viewer.id, on === true).catch(() => false);
+  return { ok };
 }

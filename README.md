@@ -84,6 +84,15 @@ The app reads each database's schema at runtime, so property types are flexible:
   - **Forgotten PIN:** type a new temporary code into `App Password` and they'll choose a new PIN on their next sign-in.
   - **Account page:** the person icon in the header. They can change their PIN or sign-in email, after entering their current PIN. Wrong PINs count towards the lockout, a new email must be typed twice, and an email that's already in use is refused.
   - **Sign-outs:** any change to the PIN or email signs out every other device. Changing `SESSION_SECRET` means everyone needs a new temporary code.
+- **Privacy Policy and Terms of Use**
+  - **Pages:** `/privacy` and `/terms`, linked at the bottom of the sign-in screen, the first-time setup screen and every portal page. Your business details are in `BUSINESS` in `src/components/Legal.tsx`.
+  - **Agreement:** the setup screen says "By continuing you agree…".
+  - **Cookies:** the only cookie is the essential sign-in cookie. There's no analytics or tracking, so no cookie banner is needed.
+- **Marketing emails (opt-in)**
+  - **Setup screen:** an unticked box: "Send me occasional news and offers".
+  - **Account page:** a News and offers switch.
+  - **Notion:** saved in People as `Marketing emails` (Checkbox) and `Marketing consent date` (Date). The date is the record of consent and is cleared on opt-out.
+  - **Who to email:** only people with the box ticked. Every promotional email needs an unsubscribe link (Spam Act).
 - **Security**
   - **Brute-force protection:** wrong PINs are counted on the person's People row (`Failed logins`). After 5 wrong PINs the account locks (`Locked until`) for 15 minutes, and the lock doubles every further 5 wrong PINs, up to 24 hours. While locked, even the right PIN is refused. Clear `Locked until` (and `Failed logins`) in Notion to unlock someone straight away. There's also a fast per-email and per-IP throttle in memory, and every failed sign-in waits about 1 second. The error message is the same whether or not an email exists.
   - **Sessions:** a signed, HttpOnly, Secure `__Host-` cookie that JavaScript can't read. It holds only the person's ID and a fingerprint of their login details, never the PIN. Changing someone's Email or App Password in Notion signs them out everywhere. Setting them Inactive blocks them on their next click.

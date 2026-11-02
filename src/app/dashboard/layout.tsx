@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { logout } from "../actions";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LegalLinks } from "@/components/Legal";
 
 export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   return (
@@ -11,7 +12,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
           <Link href="/dashboard" aria-label="Dashboard">
             <Logo />
           </Link>
-          <div className="-mr-2 flex items-center gap-1">
+          <div className="-mr-2 flex shrink-0 items-center">
             <ThemeToggle />
             <Link
               href="/dashboard/account"
@@ -27,7 +28,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
             <form action={logout}>
             <button
               type="submit"
-              className="pressable min-h-11 rounded-full px-4 text-[0.85rem] font-semibold text-muted hover:bg-card hover:text-foreground"
+              className="pressable min-h-11 whitespace-nowrap rounded-full px-3 text-[0.85rem] font-semibold text-muted hover:bg-card hover:text-foreground"
             >
               Sign out
             </button>
@@ -40,7 +41,10 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
         {children}
       </main>
 
-      <footer className="mx-auto -mt-24 w-full max-w-3xl px-5 pb-28 text-[0.7rem] text-muted sm:px-8">© Palliser Labs</footer>
+      <footer className="mx-auto -mt-24 flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-5 pb-28 text-[0.7rem] text-muted sm:px-8">
+        <span>© Palliser Labs</span>
+        <LegalLinks />
+      </footer>
     </div>
   );
 }

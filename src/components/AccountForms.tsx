@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
-import { changeEmail, changePin, setupAccount, type AccountState } from "@/app/actions";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { changeEmail, changePin, setMarketingAction, setupAccount, type AccountState } from "@/app/actions";
 import { PIN_LENGTH, pinProblem } from "@/lib/pin-rules";
 
 const inputBase =
@@ -135,9 +136,27 @@ export function SetupForm({ email }: { email: string }) {
         hint="Avoid easy ones like 123456 or your birthday."
       />
       <PinInput id="confirm" label="Type it again" autoComplete="new-password" invalid={state.field === "confirm"} />
+      <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-surface px-4 py-3.5 text-[0.85rem] leading-snug text-foreground">
+        <input type="checkbox" name="marketing" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-primary)]" />
+        <span>
+          Send me occasional news and offers from Palliser Labs.
+          <span className="mt-0.5 block text-[0.75rem] text-muted">Optional. Unsubscribe any time.</span>
+        </span>
+      </label>
       <InlineError />
       <Message state={state} />
       <Submit pending={pending} idle="Save and continue" busy="Saving…" />
+      <p className="text-center text-[0.72rem] leading-relaxed text-muted">
+        By continuing you agree to our{" "}
+        <Link href="/terms" target="_blank" className="font-semibold text-foreground underline-offset-2 hover:underline">
+          Terms of Use
+        </Link>{" "}
+        and{" "}
+        <Link href="/privacy" target="_blank" className="font-semibold text-foreground underline-offset-2 hover:underline">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </form>
   );
 }
@@ -201,4 +220,55 @@ function guardPins(e: React.FormEvent<HTMLFormElement>) {
   if (!el) return;
   el.textContent = problem ?? "";
   el.classList.toggle("hidden", !problem);
+}
+
+/** Account page: promotional emails on/off (iOS-style switch, saves straight away). */
+export function MarketingToggle({ initial }: { initial: boolean }) {
+  const [on, setOn] = useState(initial);
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+  function toggle() {
+    const next = !on;
+    setOn(next);
+    setError("");
+    startTransition(async () => {
+      const result = await setMarketingAction(next);
+      if (!result.ok) {
+        setOn(!next);
+        setError("We couldn’t save that just now. Please try again.");
+      }
+    });
+  }
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[0.9rem] font-semibold">News and offers</p>
+          <p className="mt-0.5 text-[0.78rem] leading-relaxed text-muted">
+            Occasional emails about new services and offers. Project updates aren’t affected.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label="News and offers emails"
+          disabled={pending}
+          onClick={toggle}
+          className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-300 ${on ? "bg-success" : "bg-foreground/15"}`}
+        >
+          <span
+            className={`absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgb(0_0_0/0.2)] transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+              on ? "translate-x-[20px]" : ""
+            }`}
+          />
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="mt-3 text-[0.8rem] font-semibold text-orange-ink">
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }
