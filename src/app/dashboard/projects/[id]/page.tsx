@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getProject } from "@/lib/notion";
-import { getViewer } from "@/lib/viewer";
+import { requireViewer } from "@/lib/viewer";
 import { briefRows, isHttpUrl } from "@/lib/brief";
 import { formatDueDate } from "@/lib/format";
 import { StatusChip } from "@/components/StatusChip";
@@ -22,8 +22,7 @@ const SCRIPT_NOTE: Record<string, string> = {
 };
 
 async function ProjectBrief({ params }: { params: Promise<{ id: string }> }) {
-  const viewer = await getViewer();
-  if (!viewer) redirect("/login");
+  const viewer = await requireViewer();
 
   const { id } = await params;
   // Only finds the task if its Client relation is the signed-in client.

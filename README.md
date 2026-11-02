@@ -1,6 +1,6 @@
 # Palliser Labs — Client Portal
 
-A mobile-first client portal built with Next.js (App Router), TypeScript and Tailwind CSS. Notion is the backend. People sign in with their email and a 4-digit App Password and see only the brands they're linked to.
+A mobile-first client portal built with Next.js (App Router), TypeScript and Tailwind CSS. Notion is the backend. People sign in with their email and their own 6-digit PIN and see only the brands they're linked to.
 
 ## Setup
 
@@ -77,6 +77,13 @@ The app reads each database's schema at runtime, so property types are flexible:
   - Comments posted in the app appear in Notion under the person's name.
   - Comments you add in Notion appear in the app within about 15 seconds, by polling.
   - Notion's API returns only open (unresolved) comments. If you resolve a thread in Notion, it disappears from the portal.
+- **Accounts and PINs**
+  - **New client:** add them to People (name, email, brands) and type a **temporary code** of 4–6 digits into `App Password`. Send them the code.
+  - **First sign-in:** with that code, they go straight to **Choose your PIN**. They confirm or correct their email and pick a 6-digit PIN. Easy ones like 111111 or 123456 are refused.
+  - **Hashed PIN:** the PIN is saved in `App Password` only as a salted, keyed scrypt hash (`pin1$…`), so nobody can read it, including you.
+  - **Forgotten PIN:** type a new temporary code into `App Password` and they'll choose a new PIN on their next sign-in.
+  - **Account page:** the person icon in the header. They can change their PIN or sign-in email, after entering their current PIN. Wrong PINs count towards the lockout, a new email must be typed twice, and an email that's already in use is refused.
+  - **Sign-outs:** any change to the PIN or email signs out every other device. Changing `SESSION_SECRET` means everyone needs a new temporary code.
 - **Security**
   - **Brute-force protection:** wrong PINs are counted on the person's People row (`Failed logins`). After 5 wrong PINs the account locks (`Locked until`) for 15 minutes, and the lock doubles every further 5 wrong PINs, up to 24 hours. While locked, even the right PIN is refused. Clear `Locked until` (and `Failed logins`) in Notion to unlock someone straight away. There's also a fast per-email and per-IP throttle in memory, and every failed sign-in waits about 1 second. The error message is the same whether or not an email exists.
   - **Sessions:** a signed, HttpOnly, Secure `__Host-` cookie that JavaScript can't read. It holds only the person's ID and a fingerprint of their login details, never the PIN. Changing someone's Email or App Password in Notion signs them out everywhere. Setting them Inactive blocks them on their next click.

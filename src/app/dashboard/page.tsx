@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { maybeSyncFinalEdits } from "@/lib/drive-sync";
 import { Comments } from "@/components/Comments";
@@ -11,14 +10,13 @@ import { BrandPills, BrandScopeProvider, ScopedFiles, ScopedProjectForm, ScopedT
 import { scopeBrands } from "@/lib/scope";
 import { awaitingFootage, needsClient, reviewStage, scriptInReview } from "@/lib/review";
 import { getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
-import { getViewer } from "@/lib/viewer";
+import { requireViewer } from "@/lib/viewer";
 import { Section } from "@/components/Section";
 
 export const metadata: Metadata = { title: "Dashboard — Palliser Labs" };
 
 async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: string | string[] }> }) {
-  const viewer = await getViewer();
-  if (!viewer) redirect("/login");
+  const viewer = await requireViewer();
   const multi = viewer.brands.length > 1;
   // ?brand= is only a view filter — scopeBrands ignores anything not in the viewer's own set.
   const requested = (await searchParams).brand;

@@ -4,15 +4,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getProject } from "@/lib/notion";
 import { awaitingFootage } from "@/lib/review";
-import { getViewer } from "@/lib/viewer";
+import { requireViewer } from "@/lib/viewer";
 import { ProjectForm } from "@/components/ProjectForm";
 import { ProjectSteps } from "@/components/ProjectSteps";
 
 export const metadata: Metadata = { title: "Send your footage — Palliser Labs" };
 
 async function Footage({ params }: { params: Promise<{ id: string }> }) {
-  const viewer = await getViewer();
-  if (!viewer) redirect("/login");
+  const viewer = await requireViewer();
   const { id } = await params;
   // Only found if the project belongs to one of the signed-in person's brands.
   const project = await getProject(viewer.brandIds, id);

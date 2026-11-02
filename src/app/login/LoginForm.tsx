@@ -29,7 +29,7 @@ export function LoginForm() {
 
       <div className="space-y-2">
         <label htmlFor="password" className="block text-[0.8rem] font-semibold text-foreground">
-          App Password
+          PIN
         </label>
         <input
           id="password"
@@ -37,17 +37,17 @@ export function LoginForm() {
           type="password"
           inputMode="numeric"
           autoComplete="current-password"
-          pattern="\d{4}"
-          maxLength={4}
+          pattern="\d{4,6}"
+          maxLength={6}
           required
-          placeholder="••••"
+          placeholder="••••••"
           onInput={(e) => {
             const el = e.currentTarget;
-            el.value = el.value.replace(/\D/g, "").slice(0, 4);
+            el.value = el.value.replace(/\D/g, "").slice(0, 6);
           }}
-          className="h-13 w-full rounded-2xl border border-transparent bg-surface px-4 text-center text-2xl tracking-[0.75em] text-foreground placeholder:tracking-[0.5em] placeholder:text-muted/40 transition focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/10"
+          className="h-13 w-full rounded-2xl border border-transparent bg-surface px-4 text-center text-2xl tracking-[0.6em] text-foreground placeholder:tracking-[0.5em] placeholder:text-muted/40 transition focus:border-primary focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/10"
         />
-        <p className="text-[0.75rem] text-muted">The 4-digit code we shared with you.</p>
+        <p className="text-[0.75rem] text-muted">Your 6-digit PIN. First time? Use the code we gave you.</p>
       </div>
 
       {state.error && (

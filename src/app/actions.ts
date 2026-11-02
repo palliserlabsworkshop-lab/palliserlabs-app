@@ -13,6 +13,9 @@ import {
   requestTweaks,
 } from "@/lib/notion";
 import { validateScriptRequest, type ScriptErrors } from "@/lib/script";
+import { confirmCurrentPin, updateLoginDetails } from "@/lib/notion";
+import { pinProblem } from "@/lib/pin-rules";
+import { getViewerForSetup } from "@/lib/viewer";
 import { canUseBrand } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { TWEAK_AREAS } from "@/lib/review";
@@ -33,7 +36,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   const password = String(formData.get("password") ?? "").trim().slice(0, 8);
 
   if (!EMAIL_RE.test(email)) return { error: "Enter a valid email address.", email };
-  if (!/^\d{4}$/.test(password)) return { error: "Your App Password is 4 digits.", email };
+  if (!/^\d{4,6}$/.test(password)) return { error: "Enter your 6-digit PIN (or the code we gave you).", email };
 
   const h = await headers();
   // Vercel sets x-real-ip to the visitor's address (it can't be spoofed through Vercel's edge).
@@ -44,7 +47,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     return { error: LOCKED_MESSAGE, email };
   }
 
-  let person: { id: string; credentialTag: string };
+  let person: { id: string; credentialTag: string; needsSetup: boolean };
   try {
     const result = await authenticatePerson(email, password);
     if (result.status !== "ok") {
@@ -63,7 +66,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
   keys.forEach(clearFailures);
   await createSession(person.id, person.credentialTag);
-  redirect("/dashboard");
+  // Signed in with a temporary code → choose their own PIN first.
+  redirect(person.needsSetup ? "/welcome" : "/dashboard");
 }
 
 export async function logout() {
@@ -167,4 +171,80 @@ export async function addFootageAction(taskId: string, input: Record<string, unk
   if (Object.keys(errors).length) return { errors };
   const result = await addFootage(viewer, taskId, brief);
   return result.ok ? { ok: true } : { formError: result.error };
+}
+
+// ---------------------------------------------------------------------------
+// Account: choosing a PIN (first sign-in) and changing PIN or email later
+// ---------------------------------------------------------------------------
+
+export type AccountState = { ok?: boolean; error?: string; field?: "current" | "pin" | "confirm" | "email" | "emailConfirm" };
+
+const field = (formData: FormData, name: string, max: number) => String(formData.get(name) ?? "").trim().slice(0, max);
+
+/** First sign-in with a temporary code: choose a 6-digit PIN (and confirm or correct their email). */
+export async function setupAccount(_prev: AccountState, formData: FormData): Promise<AccountState> {
+  const viewer = await getViewerForSetup();
+  if (!viewer) redirect("/login");
+  if (!viewer.needsSetup) redirect("/dashboard");
+
+  const pin = field(formData, "pin", 6);
+  const confirm = field(formData, "confirm", 6);
+  const email = field(formData, "email", 254).toLowerCase();
+  const problem = pinProblem(pin);
+  if (problem) return { error: problem, field: "pin" };
+  if (pin !== confirm) return { error: "The two PINs don’t match.", field: "confirm" };
+  if (!EMAIL_RE.test(email)) return { error: "Enter a valid email address.", field: "email" };
+
+  const result = await updateLoginDetails(viewer.id, {
+    pin,
+    ...(email !== viewer.email.toLowerCase() ? { email } : {}),
+  }).catch((error) => {
+    console.error("Account setup failed:", error);
+    return { ok: false as const, error: "We couldn’t save that just now. Please try again." };
+  });
+  if (!result.ok) return { error: result.error, field: "email" };
+  // New login details → new session for this device (any other sessions are now signed out).
+  await createSession(result.person.id, result.person.credentialTag);
+  redirect("/dashboard");
+}
+
+/** Shared check for Account changes: the current PIN, with the same lockout as signing in. */
+async function checkCurrentPin(personId: string, current: string): Promise<AccountState | null> {
+  if (!/^\d{6}$/.test(current)) return { error: "Enter your current 6-digit PIN.", field: "current" };
+  const check = await confirmCurrentPin(personId, current);
+  if (check.status === "ok") return null;
+  await slowDown();
+  return { error: check.status === "locked" ? LOCKED_MESSAGE : "That isn’t your current PIN.", field: "current" };
+}
+
+export async function changePin(_prev: AccountState, formData: FormData): Promise<AccountState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  const failed = await checkCurrentPin(viewer.id, field(formData, "current", 6));
+  if (failed) return failed;
+  const pin = field(formData, "pin", 6);
+  const problem = pinProblem(pin);
+  if (problem) return { error: problem, field: "pin" };
+  if (pin !== field(formData, "confirm", 6)) return { error: "The two PINs don’t match.", field: "confirm" };
+  const result = await updateLoginDetails(viewer.id, { pin }).catch(() => null);
+  if (!result?.ok) return { error: result?.error ?? "We couldn’t save that just now. Please try again." };
+  await createSession(result.person.id, result.person.credentialTag);
+  return { ok: true };
+}
+
+export async function changeEmail(_prev: AccountState, formData: FormData): Promise<AccountState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  const failed = await checkCurrentPin(viewer.id, field(formData, "current", 6));
+  if (failed) return failed;
+  const email = field(formData, "email", 254).toLowerCase();
+  if (!EMAIL_RE.test(email)) return { error: "Enter a valid email address.", field: "email" };
+  if (email !== field(formData, "emailConfirm", 254).toLowerCase()) {
+    return { error: "The two emails don’t match.", field: "emailConfirm" };
+  }
+  if (email === viewer.email.toLowerCase()) return { error: "That’s already your email.", field: "email" };
+  const result = await updateLoginDetails(viewer.id, { email }).catch(() => null);
+  if (!result?.ok) return { error: result?.error ?? "We couldn’t save that just now. Please try again.", field: "email" };
+  await createSession(result.person.id, result.person.credentialTag);
+  return { ok: true };
 }

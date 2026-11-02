@@ -13,6 +13,17 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
           </Link>
           <div className="-mr-2 flex items-center gap-1">
             <ThemeToggle />
+            <Link
+              href="/dashboard/account"
+              aria-label="Account"
+              title="Account"
+              className="pressable flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-card hover:text-foreground"
+            >
+              <svg viewBox="0 0 20 20" className="h-[19px] w-[19px]" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+                <circle cx="10" cy="7" r="3.25" />
+                <path d="M3.75 16.5c.9-2.9 3.3-4.5 6.25-4.5s5.35 1.6 6.25 4.5" strokeLinecap="round" />
+              </svg>
+            </Link>
             <form action={logout}>
             <button
               type="submit"

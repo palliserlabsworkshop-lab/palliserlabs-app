@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import { createPersonalBrand, getBrand, getPerson, type Actor, type Brand } from "./notion";
 import { getSession, sameTag } from "./session";
 
@@ -8,9 +9,9 @@ import { getSession, sameTag } from "./session";
  * This is the single access gate: unlinking a brand (or setting a person or brand Inactive)
  * in Notion takes effect on the next request. Their Messages thread is their own People row.
  */
-export type Viewer = Actor & { brands: Brand[] };
+export type Viewer = Actor & { brands: Brand[]; needsSetup: boolean };
 
-export const getViewer = cache(async (): Promise<Viewer | null> => {
+const loadViewer = cache(async (): Promise<Viewer | null> => {
   const session = await getSession();
   if (!session) return null;
   const person = await getPerson(session.personId);
@@ -38,5 +39,32 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
     ...linked.filter((b) => !b.personal),
     ...linked.filter((b) => b.personal).map((b) => ({ ...b, name: "Personal" })),
   ];
-  return { id: person.id, name: person.name, email: person.email, brandIds: brands.map((b) => b.id), brands };
+  return {
+    id: person.id,
+    name: person.name,
+    email: person.email,
+    brandIds: brands.map((b) => b.id),
+    brands,
+    needsSetup: person.needsSetup,
+  };
 });
+
+/**
+ * The signed-in person, for data access (API routes, server actions). Someone still on a
+ * temporary code gets nothing until they've chosen their own PIN.
+ */
+export async function getViewer(): Promise<Viewer | null> {
+  const viewer = await loadViewer();
+  return viewer && !viewer.needsSetup ? viewer : null;
+}
+
+/** For the "Choose your PIN" page: signed in, including with a temporary code. */
+export const getViewerForSetup = loadViewer;
+
+/** For pages: sends signed-out visitors to sign in, and temporary-code sessions to choose a PIN. */
+export async function requireViewer(): Promise<Viewer> {
+  const viewer = await loadViewer();
+  if (!viewer) redirect("/login");
+  if (viewer.needsSetup) redirect("/welcome");
+  return viewer;
+}

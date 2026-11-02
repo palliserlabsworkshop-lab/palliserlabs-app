@@ -38,6 +38,7 @@ import { statusKind } from "./status";
 import { ownBrandOf } from "./scope";
 import { briefRows, FORMAT_OPTIONS, labelsFor, parseBrief, PLATFORM_OPTIONS, type Brief } from "./brief";
 import { scriptAdds, scriptKind, type ScriptRequest } from "./script";
+import { hashPin, isPinHash, verifyPinHash } from "./pin";
 
 // ---------------------------------------------------------------------------
 // Client + data source resolution
@@ -276,11 +277,18 @@ async function findPersonByEmail(email: string): Promise<PageObjectResponse | nu
   return candidates.find((page) => getText(page, PERSON_PROPS.email).toLowerCase() === wanted) ?? null;
 }
 
-/** The stored 4-digit PIN (leading zeros restored), or null if it isn't a valid PIN. */
-function storedPin(page: PageObjectResponse): string | null {
-  let stored = getText(page, PERSON_PROPS.appPassword).replace(/\s/g, "");
-  if (/^\d{1,3}$/.test(stored)) stored = stored.padStart(4, "0");
-  return /^\d{4}$/.test(stored) ? stored : null;
+/** What's in "App Password": the client's own PIN (hashed), a temporary code you set, or nothing usable. */
+type StoredCredential = { kind: "pin"; hash: string } | { kind: "temporary"; code: string } | null;
+
+function rawCredential(page: PageObjectResponse): string {
+  return getText(page, PERSON_PROPS.appPassword).replace(/\s/g, "");
+}
+
+function storedCredential(page: PageObjectResponse): StoredCredential {
+  let raw = rawCredential(page);
+  if (isPinHash(raw)) return { kind: "pin", hash: raw };
+  if (/^\d{1,3}$/.test(raw)) raw = raw.padStart(4, "0"); // a Number column drops leading zeros
+  return /^\d{4,6}$/.test(raw) ? { kind: "temporary", code: raw } : null;
 }
 
 /**
@@ -289,7 +297,7 @@ function storedPin(page: PageObjectResponse): string | null {
  * them stops working straight away. It never leaves the server.
  */
 function credentialTag(page: PageObjectResponse): string {
-  const material = `${page.id}|${getText(page, PERSON_PROPS.email).toLowerCase()}|${storedPin(page) ?? ""}`;
+  const material = `${page.id}|${getText(page, PERSON_PROPS.email).toLowerCase()}|${rawCredential(page)}`;
   return createHmac("sha256", env.sessionSecret).update(material).digest("base64url").slice(0, 32);
 }
 
@@ -317,6 +325,8 @@ export type PersonProfile = {
   wantsPersonalBrand: boolean;
   /** Server-only fingerprint of the current login details (see credentialTag). */
   credentialTag: string;
+  /** Signed in with a temporary code: must choose their own PIN before using the app. */
+  needsSetup: boolean;
 };
 
 function toPerson(page: PageObjectResponse, schema: Schema): PersonProfile {
@@ -327,6 +337,7 @@ function toPerson(page: PageObjectResponse, schema: Schema): PersonProfile {
     brandIds: relationIds(page, brandColumn(schema, PERSON_PROPS.brands)),
     wantsPersonalBrand: getCheckbox(page, PERSON_PROPS.personalBrand),
     credentialTag: credentialTag(page),
+    needsSetup: storedCredential(page)?.kind !== "pin",
   };
 }
 
@@ -372,21 +383,23 @@ export function createPersonalBrand(person: PersonProfile): Promise<string> {
 export type LoginResult = { status: "ok"; person: PersonProfile } | { status: "wrong" } | { status: "locked" };
 
 /**
- * Checks an email + 4-digit App Password. Timing-safe, server-only, and brute-force resistant:
- * wrong PINs are counted on the person's People row, so the limit holds across every server.
- * After LOCK_AFTER_FAILURES wrong PINs the account locks (15 min, doubling up to 24 h); while
- * locked, even the right PIN is refused. A correct login resets the count.
+ * Checks a PIN (or temporary code) for a People row. Timing-safe, server-only and brute-force
+ * resistant: wrong attempts are counted on the person's row, so the limit holds across every
+ * server. After LOCK_AFTER_FAILURES wrong attempts the account locks (15 min, doubling up to 24 h);
+ * while locked, even the right PIN is refused. A correct attempt resets the count.
+ * Used both for signing in and for confirming the current PIN on the Account page.
  */
-export async function authenticatePerson(email: string, password: string): Promise<LoginResult> {
-  const page = await findPersonByEmail(email);
-  if (!page) return { status: "wrong" };
-
+async function attemptPin(page: PageObjectResponse, password: string): Promise<LoginResult> {
   const lockedUntil = getDate(page, PERSON_PROPS.lockedUntil);
   if (lockedUntil && Date.parse(lockedUntil) > Date.now()) return { status: "locked" };
 
-  const pin = storedPin(page);
+  const stored = storedCredential(page);
+  let matches = false;
+  if (stored?.kind === "pin") matches = /^\d{6}$/.test(password) && (await verifyPinHash(password, stored.hash));
+  else if (stored?.kind === "temporary") matches = safeEqual(stored.code, password);
+
   const failures = getNumber(page, PERSON_PROPS.failedLogins) ?? 0;
-  if (pin && safeEqual(pin, password) && !isBlocked(page)) {
+  if (matches && !isBlocked(page)) {
     if (failures || lockedUntil) await recordLoginAttempt(page, 0, null).catch((e) => console.error("Login reset failed:", e));
     return { status: "ok", person: toPerson(page, (await dataSource(env.peopleDbId)).schema) };
   }
@@ -400,6 +413,62 @@ export async function authenticatePerson(email: string, password: string): Promi
   }
   await recordLoginAttempt(page, next, lock).catch((e) => console.error("Could not record failed login:", e));
   return { status: lock ? "locked" : "wrong" };
+}
+
+/** Sign-in: email + PIN (or the temporary code you gave them). */
+export async function authenticatePerson(email: string, password: string): Promise<LoginResult> {
+  const page = await findPersonByEmail(email);
+  if (!page) {
+    // Do the same amount of work as a real check, so response times don't reveal which emails exist.
+    await verifyPinHash(password, "pin1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA").catch(() => false);
+    return { status: "wrong" };
+  }
+  return attemptPin(page, password);
+}
+
+/** Confirms the signed-in person's current PIN (same lockout rules as signing in). */
+export async function confirmCurrentPin(personId: string, password: string): Promise<LoginResult> {
+  const page = await loadRowOf(env.peopleDbId, personId);
+  return page ? attemptPin(page, password) : { status: "wrong" };
+}
+
+export type LoginChange = { ok: true; person: PersonProfile } | { ok: false; error: string };
+
+/**
+ * Saves a new PIN (hashed) and/or email on the person's People row and returns their refreshed
+ * profile (so the current device can stay signed in while every other session is signed out).
+ */
+export async function updateLoginDetails(personId: string, change: { pin?: string; email?: string }): Promise<LoginChange> {
+  const page = await loadRowOf(env.peopleDbId, personId);
+  if (!page) return { ok: false, error: "We couldn’t find your account." };
+  const ds = await dataSource(env.peopleDbId);
+  const names = Object.keys(ds.schema);
+  const properties: Record<string, unknown> = {};
+
+  if (change.email !== undefined) {
+    const email = change.email.trim().toLowerCase();
+    const owner = await findPersonByEmail(email);
+    if (owner && normalizeNotionId(owner.id) !== normalizeNotionId(page.id)) {
+      return { ok: false, error: "That email is already used by another account." };
+    }
+    const emailName = resolveName(names, PERSON_PROPS.email);
+    if (ds.schema[emailName] === "email") properties[emailName] = { email };
+    else if (ds.schema[emailName] === "rich_text") properties[emailName] = { rich_text: chunkText(email) };
+    else return { ok: false, error: "Email can’t be changed right now." };
+  }
+  if (change.pin !== undefined) {
+    const pinName = resolveName(names, PERSON_PROPS.appPassword);
+    if (ds.schema[pinName] !== "rich_text") return { ok: false, error: "Your PIN can’t be changed right now." };
+    properties[pinName] = { rich_text: chunkText(await hashPin(change.pin)) };
+  }
+  if (!Object.keys(properties).length) return { ok: false, error: "Nothing to change." };
+
+  const updated = await notion().pages.update({
+    page_id: page.id,
+    properties: properties as Parameters<Client["pages"]["update"]>[0]["properties"],
+  });
+  if (!isFullPage(updated)) return { ok: false, error: "Something went wrong. Please try again." };
+  return { ok: true, person: toPerson(updated, ds.schema) };
 }
 
 /** Loads a person by page ID, verifying it's a row in the People DB and not blocked. */
