@@ -93,6 +93,11 @@ The app reads each database's schema at runtime, so property types are flexible:
   - **Account page:** a News and offers switch.
   - **Notion:** saved in People as `Marketing emails` (Checkbox) and `Marketing consent date` (Date). The date is the record of consent and is cleared on opt-out.
   - **Who to email:** only people with the box ticked. Every promotional email needs an unsubscribe link (Spam Act).
+- **Online status**
+  - **On the client's dashboard:** a pulsing green dot next to their name while they're using it. It turns yellow (Away) after 5 minutes without a tap, scroll or keypress, or when they switch tabs.
+  - **How it updates:** the dashboard checks in about once a minute (`/api/presence`). This sets `Last seen` (Date) and `Presence` (Online/Away) on their People row. Closing the dashboard, or 30 minutes untouched, marks them offline straight away.
+  - **What you see:** the `Online` formula column shows 🟢 Online, 🟡 Away or ⚪ "2h ago". Notion recalculates it whenever you look, and shows offline once `Last seen` is 3+ minutes old.
+  - **In Notion:** the **Who's online** view on People lists everyone by most recent. You can hide `Last seen` and `Presence` in your other views.
 - **Security**
   - **Brute-force protection:** wrong PINs are counted on the person's People row (`Failed logins`). After 5 wrong PINs the account locks (`Locked until`) for 15 minutes, and the lock doubles every further 5 wrong PINs, up to 24 hours. While locked, even the right PIN is refused. Clear `Locked until` (and `Failed logins`) in Notion to unlock someone straight away. There's also a fast per-email and per-IP throttle in memory, and every failed sign-in waits about 1 second. The error message is the same whether or not an email exists.
   - **Sessions:** a signed, HttpOnly, Secure `__Host-` cookie that JavaScript can't read. It holds only the person's ID and a fingerprint of their login details, never the PIN. Changing someone's Email or App Password in Notion signs them out everywhere. Setting them Inactive blocks them on their next click.

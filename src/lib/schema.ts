@@ -53,6 +53,8 @@ export const PERSON_PROPS = {
   lockedUntil: "Locked until", // Date — set by the app after repeated wrong PINs; clear it to unlock
   marketing: "Marketing emails", // Checkbox — the client's own opt-in to promotional emails (unticked by default)
   marketingDate: "Marketing consent date", // Date — when they opted in (record of consent); cleared on opt-out
+  lastSeen: "Last seen", // Date — set by the app about every minute while their dashboard is open
+  presence: "Presence", // Select — Online / Away, set by the app (the "Online" formula turns these into a live status)
 } as const;
 
 /** Login lockout: after this many wrong PINs in a row, the account is locked for a while. */

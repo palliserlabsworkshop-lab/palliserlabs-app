@@ -36,6 +36,11 @@ export default function PrivacyPage() {
           <strong>Your email preference:</strong> whether you’ve opted in to news and offers, and when.
         </li>
         <li>
+          <strong>Activity status:</strong> when you last had the portal open and whether you were active or away, so
+          our team can see when you’re online (for example, to reply while you’re there). We don’t record what you
+          look at or click.
+        </li>
+        <li>
           <strong>Security records:</strong> a count of recent incorrect PIN attempts and any temporary lock, used to
           protect your account. Your IP address is used briefly to limit repeated sign-in attempts and isn’t stored
           with your account. Our hosting provider keeps short-lived technical logs (such as the time and address of a
@@ -52,6 +57,7 @@ export default function PrivacyPage() {
         <li>to produce, deliver and revise the work you’ve asked for;</li>
         <li>to communicate with you about your projects;</li>
         <li>to keep the portal and your account secure;</li>
+        <li>to show our team when you’re online, so we can respond while you’re there;</li>
         <li>to send you news and offers — only if you’ve opted in.</li>
       </ul>
       <p>

@@ -456,6 +456,28 @@ export async function setMarketingPreference(personId: string, on: boolean): Pro
   return true;
 }
 
+export type PresenceState = "online" | "away" | "offline";
+
+/**
+ * Activity status for your "Who's online" view. "Last seen" is refreshed while the dashboard is
+ * open; the Online formula in Notion shows Offline once it's 3+ minutes old. Going offline (closing
+ * the dashboard, or 30 minutes untouched) back-dates it so the status changes straight away.
+ */
+export async function recordPresence(personId: string, state: PresenceState): Promise<void> {
+  const ds = await dataSource(env.peopleDbId);
+  const names = Object.keys(ds.schema);
+  const properties: Record<string, unknown> = {};
+  const seen = resolveName(names, PERSON_PROPS.lastSeen);
+  const at = state === "offline" ? Date.now() - 5 * 60_000 : Date.now();
+  if (ds.schema[seen] === "date") properties[seen] = { date: { start: new Date(at).toISOString() } };
+  const presence = resolveName(names, PERSON_PROPS.presence);
+  if (ds.schema[presence] === "select" && state !== "offline") {
+    properties[presence] = { select: { name: state === "away" ? "Away" : "Online" } };
+  }
+  if (!Object.keys(properties).length) return;
+  await notion().pages.update({ page_id: personId, properties: properties as Parameters<Client["pages"]["update"]>[0]["properties"] });
+}
+
 export type LoginChange = { ok: true; person: PersonProfile } | { ok: false; error: string };
 
 /**

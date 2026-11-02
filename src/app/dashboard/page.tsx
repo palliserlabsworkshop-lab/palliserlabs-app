@@ -12,6 +12,7 @@ import { awaitingFootage, needsClient, reviewStage, scriptInReview } from "@/lib
 import { getComments, getFiles, getTasks, type PortalComment } from "@/lib/notion";
 import { requireViewer } from "@/lib/viewer";
 import { Section } from "@/components/Section";
+import { PresenceDot } from "@/components/Presence";
 
 export const metadata: Metadata = { title: "Dashboard — Palliser Labs" };
 
@@ -59,6 +60,9 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
         <p className="text-[0.95rem] text-muted">Welcome back,</p>
         <h1 className="mt-1 break-words font-display text-[2.5rem] font-medium leading-[1.04] tracking-[-0.03em] sm:text-[3.4rem]">
           {viewer.name || "there"}
+          <span className="ml-3 inline-flex align-middle sm:ml-4">
+            <PresenceDot />
+          </span>
         </h1>
         {multi ? (
           <BrandPills />

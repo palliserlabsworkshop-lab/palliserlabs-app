@@ -8,7 +8,8 @@ import "server-only";
  * Also used to rate-limit posting (key prefix "post:").
  */
 const WINDOW_MS = 15 * 60 * 1000;
-const limitFor = (key: string) => (key.startsWith("ip:") ? 20 : key.startsWith("post:") ? 60 : 5);
+const limitFor = (key: string) =>
+  key.startsWith("ip:") ? 20 : key.startsWith("post:") ? 60 : key.startsWith("presence:") ? 60 : 5;
 const failures = new Map<string, { count: number; resetAt: number }>();
 
 export function isLimited(key: string): boolean {
