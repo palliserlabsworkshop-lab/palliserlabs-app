@@ -1,13 +1,14 @@
 import "server-only";
 
 /**
- * Simple in-memory login throttle: 5 failed attempts per key per 15 minutes.
- * On Vercel each serverless instance has its own memory, so this slows down
- * guessing rather than guaranteeing a hard limit. For a strict global limit,
- * back it with a shared store such as Upstash Redis or Vercel KV.
+ * Fast in-memory throttle, a first line of defence in front of the per-account lockout that's
+ * stored in Notion (see authenticatePerson). Per email: 5 failures / 15 min. Per IP address:
+ * 20 failures / 15 min across all emails, which stops one visitor trying many accounts.
+ * Each Vercel instance has its own memory, which is why the Notion lockout is the hard limit.
+ * Also used to rate-limit posting (key prefix "post:").
  */
 const WINDOW_MS = 15 * 60 * 1000;
-const MAX_FAILURES = 5;
+const limitFor = (key: string) => (key.startsWith("ip:") ? 20 : key.startsWith("post:") ? 60 : 5);
 const failures = new Map<string, { count: number; resetAt: number }>();
 
 export function isLimited(key: string): boolean {
@@ -17,7 +18,7 @@ export function isLimited(key: string): boolean {
     failures.delete(key);
     return false;
   }
-  return entry.count >= MAX_FAILURES;
+  return entry.count >= limitFor(key);
 }
 
 export function recordFailure(key: string) {
@@ -27,6 +28,9 @@ export function recordFailure(key: string) {
   else entry.count++;
   if (failures.size > 10_000) failures.clear();
 }
+
+/** Counts one use against a key's limit (same counter as recordFailure, clearer name for posting). */
+export const recordHit = recordFailure;
 
 export function clearFailures(key: string) {
   failures.delete(key);

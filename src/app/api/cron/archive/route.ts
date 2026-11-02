@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasCronSecret } from "@/lib/request-guard";
 import { archiveDownloadedVideos } from "@/lib/notion";
 import { archiveDriveFiles, syncFinalEdits } from "@/lib/drive-sync";
 
@@ -8,8 +9,7 @@ import { archiveDriveFiles, syncFinalEdits } from "@/lib/drive-sync";
  * then picks up any final edits waiting in the Drive folder.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!hasCronSecret(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {

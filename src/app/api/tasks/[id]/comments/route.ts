@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { addTaskComment, getTaskComments, MAX_COMMENT_LENGTH } from "@/lib/notion";
 import { getViewer } from "@/lib/viewer";
+import { isSameOrigin } from "@/lib/request-guard";
+import { isLimited, recordHit } from "@/lib/rate-limit";
 
 const noStore = { "Cache-Control": "no-store" };
 
@@ -22,6 +24,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewer();
   if (!viewer) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: noStore });
+  // Anti-spam: up to 60 posts per person per 15 minutes.
+  const postKey = `post:${viewer.id}`;
+  if (isLimited(postKey)) return NextResponse.json({ error: "You’re posting very quickly — please wait a moment." }, { status: 429, headers: noStore });
+  recordHit(postKey);
   const { id } = await params;
 
   const body = await request.json().catch(() => null);

@@ -49,7 +49,15 @@ export const PERSON_PROPS = {
   status: "Status",
   brands: "Brands", // Relation to the Clients/Brands database
   personalBrand: "Personal brand", // Checkbox — when ticked, the app creates and shows their personal brand
+  failedLogins: "Failed logins", // Number — set by the app: wrong PINs in a row (resets on success)
+  lockedUntil: "Locked until", // Date — set by the app after repeated wrong PINs; clear it to unlock
 } as const;
+
+/** Login lockout: after this many wrong PINs in a row, the account is locked for a while. */
+export const LOCK_AFTER_FAILURES = 5;
+/** First lock lasts this long; it doubles every further 5 wrong PINs, up to LOCK_MAX_MINUTES. */
+export const LOCK_BASE_MINUTES = 15;
+export const LOCK_MAX_MINUTES = 24 * 60;
 
 /**
  * Review workflow status names. Each must exist as a Status option in Notion:

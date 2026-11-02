@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isHttpUrl } from "@/lib/brief";
 
 const pill =
   "pressable inline-flex min-h-10 items-center gap-1.5 rounded-full bg-surface px-3.5 text-[0.78rem] font-semibold text-foreground hover:bg-foreground/[0.08]";
@@ -69,7 +70,7 @@ export function ScriptTools({ taskId, text, link }: { taskId: string; text: stri
           Download .txt
         </a>
       )}
-      {link && (
+      {link && isHttpUrl(link) && (
         <a href={link} target="_blank" rel="noopener noreferrer" className={pill}>
           <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
             <path d="M4 1.75h5.25L12.5 5v9.25H4Z" strokeLinejoin="round" />

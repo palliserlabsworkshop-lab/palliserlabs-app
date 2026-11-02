@@ -7,6 +7,7 @@ import type { Task } from "@/lib/notion";
 import { driveInfo, reviewStage, scriptInReview, awaitingFootage, TWEAK_AREAS, type ReviewStage as Stage } from "@/lib/review";
 import { ScriptCard } from "./ScriptCard";
 import { formatDueDate } from "@/lib/format";
+import { isHttpUrl } from "@/lib/brief";
 import { FeedbackThread, Tick } from "./ReviewParts";
 
 
@@ -40,7 +41,8 @@ function Player({ link, taskId }: { link: string; taskId: string }) {
 
   return (
     <a
-      href={link}
+      // Only real web links — never javascript: or other schemes, even if typed into Notion.
+      href={isHttpUrl(link) ? link : undefined}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${label} in Google Drive`}

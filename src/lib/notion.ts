@@ -1,5 +1,5 @@
 import "server-only";
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   Client,
   collectPaginatedAPI,
@@ -13,6 +13,9 @@ import {
 } from "@notionhq/client";
 import { env, normalizeNotionId } from "./env";
 import {
+  LOCK_AFTER_FAILURES,
+  LOCK_BASE_MINUTES,
+  LOCK_MAX_MINUTES,
   PERSONAL_BRAND_TYPE,
   PERSON_PROPS,
   REVIEW_STATUS,
@@ -258,33 +261,63 @@ function isBlocked(page: PageObjectResponse): boolean {
 /** The signed-in person acting in the app. `brandIds` always comes from Notion on the server. */
 export type Actor = { id: string; name: string; email: string; brandIds: string[] };
 
-/**
- * Finds the person whose Email + 4-digit App Password match. Timing-safe, and the password is
- * only ever compared here on the server.
- */
-async function matchLogin(email: string, password: string): Promise<PageObjectResponse | null> {
-  const props = PERSON_PROPS;
+/** Finds the People row for an email (case-insensitive). */
+async function findPersonByEmail(email: string): Promise<PageObjectResponse | null> {
   const ds = await dataSource(env.peopleDbId);
   const wanted = email.trim().toLowerCase();
   let candidates: PageObjectResponse[] = [];
   for (const value of new Set([email.trim(), wanted])) {
-    const filter = equalsFilter(ds.schema, props.email, value);
+    const filter = equalsFilter(ds.schema, PERSON_PROPS.email, value);
     if (!filter) break;
     candidates = await queryAll(ds, filter);
     if (candidates.length) break;
   }
   if (!candidates.length) candidates = await queryAll(ds);
-  for (const page of candidates) {
-    if (getText(page, props.email).toLowerCase() !== wanted) continue;
-    let stored = getText(page, props.appPassword).replace(/\s/g, "");
-    if (/^\d{1,3}$/.test(stored)) stored = stored.padStart(4, "0");
-    if (!/^\d{4}$/.test(stored)) continue;
-    if (safeEqual(stored, password) && !isBlocked(page)) return page;
-  }
-  return null;
+  return candidates.find((page) => getText(page, PERSON_PROPS.email).toLowerCase() === wanted) ?? null;
 }
 
-export type PersonProfile = { id: string; name: string; email: string; brandIds: string[]; wantsPersonalBrand: boolean };
+/** The stored 4-digit PIN (leading zeros restored), or null if it isn't a valid PIN. */
+function storedPin(page: PageObjectResponse): string | null {
+  let stored = getText(page, PERSON_PROPS.appPassword).replace(/\s/g, "");
+  if (/^\d{1,3}$/.test(stored)) stored = stored.padStart(4, "0");
+  return /^\d{4}$/.test(stored) ? stored : null;
+}
+
+/**
+ * A fingerprint of the person's current login details, kept inside their session. If you change
+ * their Email or App Password in Notion, the fingerprint changes and every existing session for
+ * them stops working straight away. It never leaves the server.
+ */
+function credentialTag(page: PageObjectResponse): string {
+  const material = `${page.id}|${getText(page, PERSON_PROPS.email).toLowerCase()}|${storedPin(page) ?? ""}`;
+  return createHmac("sha256", env.sessionSecret).update(material).digest("base64url").slice(0, 32);
+}
+
+/** Saves the failed-login count and lock time (skipped if the People columns don't exist). */
+async function recordLoginAttempt(page: PageObjectResponse, failures: number, lockedUntil: string | null) {
+  const ds = await dataSource(env.peopleDbId);
+  const names = Object.keys(ds.schema);
+  const properties: Record<string, unknown> = {};
+  const failedName = resolveName(names, PERSON_PROPS.failedLogins);
+  if (ds.schema[failedName] === "number") properties[failedName] = { number: failures };
+  const lockName = resolveName(names, PERSON_PROPS.lockedUntil);
+  if (ds.schema[lockName] === "date") properties[lockName] = { date: lockedUntil ? { start: lockedUntil } : null };
+  if (!Object.keys(properties).length) return;
+  await notion().pages.update({
+    page_id: page.id,
+    properties: properties as Parameters<Client["pages"]["update"]>[0]["properties"],
+  });
+}
+
+export type PersonProfile = {
+  id: string;
+  name: string;
+  email: string;
+  brandIds: string[];
+  wantsPersonalBrand: boolean;
+  /** Server-only fingerprint of the current login details (see credentialTag). */
+  credentialTag: string;
+};
 
 function toPerson(page: PageObjectResponse, schema: Schema): PersonProfile {
   return {
@@ -293,6 +326,7 @@ function toPerson(page: PageObjectResponse, schema: Schema): PersonProfile {
     email: getText(page, PERSON_PROPS.email),
     brandIds: relationIds(page, brandColumn(schema, PERSON_PROPS.brands)),
     wantsPersonalBrand: getCheckbox(page, PERSON_PROPS.personalBrand),
+    credentialTag: credentialTag(page),
   };
 }
 
@@ -335,9 +369,37 @@ export function createPersonalBrand(person: PersonProfile): Promise<string> {
   return job;
 }
 
-export async function authenticatePerson(email: string, password: string): Promise<PersonProfile | null> {
-  const page = await matchLogin(email, password);
-  return page ? toPerson(page, (await dataSource(env.peopleDbId)).schema) : null;
+export type LoginResult = { status: "ok"; person: PersonProfile } | { status: "wrong" } | { status: "locked" };
+
+/**
+ * Checks an email + 4-digit App Password. Timing-safe, server-only, and brute-force resistant:
+ * wrong PINs are counted on the person's People row, so the limit holds across every server.
+ * After LOCK_AFTER_FAILURES wrong PINs the account locks (15 min, doubling up to 24 h); while
+ * locked, even the right PIN is refused. A correct login resets the count.
+ */
+export async function authenticatePerson(email: string, password: string): Promise<LoginResult> {
+  const page = await findPersonByEmail(email);
+  if (!page) return { status: "wrong" };
+
+  const lockedUntil = getDate(page, PERSON_PROPS.lockedUntil);
+  if (lockedUntil && Date.parse(lockedUntil) > Date.now()) return { status: "locked" };
+
+  const pin = storedPin(page);
+  const failures = getNumber(page, PERSON_PROPS.failedLogins) ?? 0;
+  if (pin && safeEqual(pin, password) && !isBlocked(page)) {
+    if (failures || lockedUntil) await recordLoginAttempt(page, 0, null).catch((e) => console.error("Login reset failed:", e));
+    return { status: "ok", person: toPerson(page, (await dataSource(env.peopleDbId)).schema) };
+  }
+
+  const next = failures + 1;
+  let lock: string | null = null;
+  if (next >= LOCK_AFTER_FAILURES) {
+    const doublings = Math.floor((next - LOCK_AFTER_FAILURES) / LOCK_AFTER_FAILURES);
+    const minutes = Math.min(LOCK_BASE_MINUTES * 2 ** doublings, LOCK_MAX_MINUTES);
+    lock = new Date(Date.now() + minutes * 60_000).toISOString();
+  }
+  await recordLoginAttempt(page, next, lock).catch((e) => console.error("Could not record failed login:", e));
+  return { status: lock ? "locked" : "wrong" };
 }
 
 /** Loads a person by page ID, verifying it's a row in the People DB and not blocked. */

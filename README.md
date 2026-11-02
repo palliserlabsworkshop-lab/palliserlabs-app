@@ -25,7 +25,7 @@ npm run dev
 1. **Share each database with the integration.** Open each of the three databases, then go to **⋯ → Connections** and add your integration.
 2. **Turn on the comment capabilities.** Go to notion.so/profile/integrations, open your integration, then **Capabilities**. Enable *Read content*, *Insert content*, *Read comments* and *Insert comments*. Without the comment capabilities, the Comments section shows "unavailable".
 3. **Use these property names**, or change them in `src/lib/schema.ts`:
-   - People: `Name`, `Email`, `App Password`, `Status`, `Brands` (a relation to Brands), `Personal brand` (Checkbox)
+   - People: `Name`, `Email`, `App Password`, `Status`, `Brands` (a relation to Brands), `Personal brand` (Checkbox), `Failed logins` (Number) and `Locked until` (Date), which are set by the app
    - Brands: `Name`, `Type` (Business / Personal brand), `Status`
    - Tasks: `Task`, `Status`, `Due date`, `Brand` (or `Client`, a relation to Brands), plus `Video Link` (URL) and `Brief Data` (Text) for portal projects, and `Final Video` (URL), `Revision round` (Number), `Approved on` (Date), `Downloaded on` (Date) for reviews, plus `Script status` (Select: Queued / Ready for review / Changes requested / Approved), `Script` (Text) and `Script Link` (URL) for the script step. `Status` needs `Queued`, `Ready for review`, `Tweaks requested`, `Approved` and `Archived` options.
    - Files: `File name`, `File / URL`, `Type`, `Brand` (or `Client`, a relation to Brands)
@@ -77,7 +77,12 @@ The app reads each database's schema at runtime, so property types are flexible:
   - Comments posted in the app appear in Notion under the person's name.
   - Comments you add in Notion appear in the app within about 15 seconds, by polling.
   - Notion's API returns only open (unresolved) comments. If you resolve a thread in Notion, it disappears from the portal.
-- **Login throttling**: after 5 failed attempts in 15 minutes, further attempts from that email or IP are blocked. This uses in-memory storage, so on Vercel each instance keeps its own count. For a strict global limit, use Upstash Redis or Vercel KV.
+- **Security**
+  - **Brute-force protection:** wrong PINs are counted on the person's People row (`Failed logins`). After 5 wrong PINs the account locks (`Locked until`) for 15 minutes, and the lock doubles every further 5 wrong PINs, up to 24 hours. While locked, even the right PIN is refused. Clear `Locked until` (and `Failed logins`) in Notion to unlock someone straight away. There's also a fast per-email and per-IP throttle in memory, and every failed sign-in waits about 1 second. The error message is the same whether or not an email exists.
+  - **Sessions:** a signed, HttpOnly, Secure `__Host-` cookie that JavaScript can't read. It holds only the person's ID and a fingerprint of their login details, never the PIN. Changing someone's Email or App Password in Notion signs them out everywhere. Setting them Inactive blocks them on their next click.
+  - **Browser protections:** a strict Content Security Policy (code, images and connections only to this site, no framing, no outside form posts), HSTS, no-sniff, a Permissions-Policy and noindex. `X-Powered-By` is removed.
+  - **Requests:** the message endpoints only accept posts from the portal's own pages (CSRF check) and are rate-limited. Server actions have Next.js's built-in origin check. Cron routes compare `CRON_SECRET` in constant time. Links from Notion are only opened if they're http(s).
+  - **Secrets:** they live only in Vercel environment variables, are read server-side only (`server-only`), and none are exposed to the browser.
 
 ## Branding
 

@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { createPersonalBrand, getBrand, getPerson, type Actor, type Brand } from "./notion";
-import { getSessionPersonId } from "./session";
+import { getSession, sameTag } from "./session";
 
 /**
  * The signed-in person and the brands they can see, rebuilt from Notion on every request.
@@ -11,10 +11,12 @@ import { getSessionPersonId } from "./session";
 export type Viewer = Actor & { brands: Brand[] };
 
 export const getViewer = cache(async (): Promise<Viewer | null> => {
-  const personId = await getSessionPersonId();
-  if (!personId) return null;
-  const person = await getPerson(personId);
+  const session = await getSession();
+  if (!session) return null;
+  const person = await getPerson(session.personId);
   if (!person) return null;
+  // Changing someone's Email or App Password in Notion signs them out everywhere.
+  if (!sameTag(person.credentialTag, session.credentialTag)) return null;
 
   // Each linked brand must still be a live row in the Brands database.
   let linked = (await Promise.all(person.brandIds.map((id) => getBrand(id)))).filter((b): b is Brand => b !== null);

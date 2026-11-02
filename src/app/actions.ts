@@ -23,36 +23,46 @@ import { createSession, destroySession } from "@/lib/session";
 export type LoginState = { error?: string; email?: string };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LOCKED_MESSAGE = "Too many attempts. For your security, sign-in is paused for a while — try again later or message us.";
+
+/** A short, slightly random pause after a failed sign-in, so guessing is slow and timing reveals nothing. */
+const slowDown = () => new Promise((r) => setTimeout(r, 600 + Math.random() * 400));
 
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().slice(0, 254);
+  const password = String(formData.get("password") ?? "").trim().slice(0, 8);
 
   if (!EMAIL_RE.test(email)) return { error: "Enter a valid email address.", email };
   if (!/^\d{4}$/.test(password)) return { error: "Your App Password is 4 digits.", email };
 
   const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim();
+  // Vercel sets x-real-ip to the visitor's address (it can't be spoofed through Vercel's edge).
+  const ip = (h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0])?.trim().slice(0, 64);
   const keys = [`email:${email.toLowerCase()}`, ...(ip ? [`ip:${ip}`] : [])];
   if (keys.some(isLimited)) {
-    return { error: "Too many attempts. Please wait 15 minutes and try again.", email };
+    await slowDown();
+    return { error: LOCKED_MESSAGE, email };
   }
 
-  let personId: string;
+  let person: { id: string; credentialTag: string };
   try {
-    const person = await authenticatePerson(email, password);
-    if (!person) {
+    const result = await authenticatePerson(email, password);
+    if (result.status !== "ok") {
       keys.forEach(recordFailure);
-      return { error: "That email and App Password don’t match our records.", email };
+      await slowDown();
+      // The same wording whether or not the email exists, so it can't be used to find accounts.
+      return result.status === "locked"
+        ? { error: LOCKED_MESSAGE, email }
+        : { error: "That email and App Password don’t match our records.", email };
     }
-    personId = person.id;
+    person = result.person;
   } catch (error) {
     console.error("Login failed:", error);
     return { error: "We couldn’t reach the server. Please try again shortly.", email };
   }
 
   keys.forEach(clearFailures);
-  await createSession(personId);
+  await createSession(person.id, person.credentialTag);
   redirect("/dashboard");
 }
 
