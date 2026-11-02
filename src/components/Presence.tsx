@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-/** Untouched for this long → Away. */
+/** No movement (mouse, tap, scroll, key, or coming back to the tab) for this long → Away. Switching tabs alone doesn't count. */
 const AWAY_AFTER_MS = 5 * 60_000;
 /** Untouched for this long → Offline (even if the dashboard is still open). */
 const OFFLINE_AFTER_MS = 30 * 60_000;
@@ -40,7 +40,7 @@ export function PresenceDot() {
     const current = (): State => {
       const idle = Date.now() - lastInput;
       if (idle >= OFFLINE_AFTER_MS) return "offline";
-      if (document.hidden || idle >= AWAY_AFTER_MS) return "away";
+      if (idle >= AWAY_AFTER_MS) return "away";
       return "online";
     };
     const tick = () => {
@@ -65,17 +65,19 @@ export function PresenceDot() {
       if (!wasActive) tick(); // coming back from Away/Offline updates straight away
     };
     const onLeave = () => report("offline", true);
+    // Coming back to the tab counts as movement; leaving it doesn't change anything until the 5 minutes pass.
+    const onVisibility = () => (document.hidden ? undefined : onActivity());
 
-    const events = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
+    const events = ["pointerdown", "pointermove", "wheel", "keydown", "scroll", "touchstart"] as const;
     events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
-    document.addEventListener("visibilitychange", tick);
+    document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onLeave);
     tick();
     const id = setInterval(tick, TICK_MS);
     return () => {
       clearInterval(id);
       events.forEach((e) => window.removeEventListener(e, onActivity));
-      document.removeEventListener("visibilitychange", tick);
+      document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onLeave);
     };
   }, []);

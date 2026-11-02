@@ -94,7 +94,7 @@ The app reads each database's schema at runtime, so property types are flexible:
   - **Notion:** saved in People as `Marketing emails` (Checkbox) and `Marketing consent date` (Date). The date is the record of consent and is cleared on opt-out.
   - **Who to email:** only people with the box ticked. Every promotional email needs an unsubscribe link (Spam Act).
 - **Online status**
-  - **On the client's dashboard:** a pulsing green dot next to their name while they're using it. It turns yellow (Away) after 5 minutes without a tap, scroll or keypress, or when they switch tabs.
+  - **On the client's dashboard:** a pulsing green dot next to their name while they're using it. It turns yellow (Away) after 5 minutes without a tap, scroll or keypress. Switching tabs doesn't count until those 5 minutes pass.
   - **How it updates:** the dashboard checks in about once a minute (`/api/presence`). This sets `Last seen` (Date) and `Presence` (Online/Away) on their People row. Closing the dashboard, or 30 minutes untouched, marks them offline straight away.
   - **What you see:** the `Online` formula column shows 🟢 Online, 🟡 Away or ⚪ "2h ago". Notion recalculates it whenever you look, and shows offline once `Last seen` is 3+ minutes old.
   - **In Notion:** the **Who's online** view on People lists everyone by most recent. You can hide `Last seen` and `Presence` in your other views.
