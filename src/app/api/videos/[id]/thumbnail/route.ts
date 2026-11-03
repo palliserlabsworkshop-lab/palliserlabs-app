@@ -1,5 +1,6 @@
 import { getFinalVideoLink } from "@/lib/notion";
 import { getViewer } from "@/lib/viewer";
+import { isNotionPageId } from "@/lib/request-guard";
 import { driveInfo } from "@/lib/review";
 
 /**
@@ -14,6 +15,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!viewer) return new Response(null, { status: 401 });
 
   const { id } = await params;
+  if (!isNotionPageId(id)) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
   const link = await getFinalVideoLink(viewer.brandIds, id).catch(() => null);
   const info = link ? driveInfo(link) : null;
   if (!info?.thumbnail) return notFound();

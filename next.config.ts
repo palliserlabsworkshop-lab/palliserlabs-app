@@ -30,6 +30,12 @@ const csp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    serverActions: {
+      // The largest real request is a 20,000-character script (≈80 KB worst case). Anything bigger is refused.
+      bodySizeLimit: "256kb",
+    },
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

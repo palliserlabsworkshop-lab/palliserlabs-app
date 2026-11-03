@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getScript } from "@/lib/notion";
 import { scriptFileName } from "@/lib/script";
 import { getViewer } from "@/lib/viewer";
+import { isNotionPageId } from "@/lib/request-guard";
 
 /** Downloads a project's script as a plain text file — only for the signed-in person's own brands. */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -9,6 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!viewer) return NextResponse.redirect(new URL("/login", request.url));
 
   const { id } = await params;
+  if (!isNotionPageId(id)) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
   const script = await getScript(viewer.brandIds, id).catch(() => null);
   if (!script || (!script.text && !script.link)) {
     return new NextResponse("Script not found", { status: 404, headers: { "Cache-Control": "no-store" } });

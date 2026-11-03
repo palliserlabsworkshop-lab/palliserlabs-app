@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordDownload } from "@/lib/notion";
 import { getViewer } from "@/lib/viewer";
+import { isNotionPageId } from "@/lib/request-guard";
 
 /**
  * Download button target: records "Downloaded on" in Notion the first time,
@@ -12,6 +13,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!viewer) return NextResponse.redirect(new URL("/login", request.url));
 
   const { id } = await params;
+  if (!isNotionPageId(id)) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
   const link = await recordDownload(viewer.brandIds, id).catch(() => null);
   if (!link || !/^https?:\/\//i.test(link)) {
     return new NextResponse("Video not found", { status: 404, headers: { "Cache-Control": "no-store" } });

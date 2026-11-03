@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { addComment, getComments, MAX_COMMENT_LENGTH } from "@/lib/notion";
 import { getViewer } from "@/lib/viewer";
-import { isSameOrigin } from "@/lib/request-guard";
+import { isSameOrigin, readJson } from "@/lib/request-guard";
 import { isLimited, recordHit } from "@/lib/rate-limit";
 
 const noStore = { "Cache-Control": "no-store" };
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   if (isLimited(postKey)) return NextResponse.json({ error: "You’re posting very quickly — please wait a moment." }, { status: 429, headers: noStore });
   recordHit(postKey);
 
-  const body = await request.json().catch(() => null);
+  const body = (await readJson(request)) as { text?: unknown } | undefined;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) return NextResponse.json({ error: "Comment is empty" }, { status: 400, headers: noStore });
   if (text.length > MAX_COMMENT_LENGTH) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordPresence, type PresenceState } from "@/lib/notion";
 import { getViewer } from "@/lib/viewer";
-import { isSameOrigin } from "@/lib/request-guard";
+import { isSameOrigin, readJson } from "@/lib/request-guard";
 import { isLimited, recordHit } from "@/lib/rate-limit";
 
 const STATES: PresenceState[] = ["online", "away", "offline"];
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   if (isLimited(key)) return new NextResponse(null, { status: 429 });
   recordHit(key);
 
-  const body = await request.json().catch(() => null);
+  const body = (await readJson(request, 1024)) as { state?: unknown } | undefined;
   const state = STATES.find((s) => s === body?.state);
   if (!state) return new NextResponse(null, { status: 400 });
   try {
