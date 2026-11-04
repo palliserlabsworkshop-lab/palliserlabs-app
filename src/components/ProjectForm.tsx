@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { PRICE_CENTS, dollars, extras } from "@/lib/billing";
+
+/** "1 extra: +$5" / "3 extras: +$15" — the running cost of what's been picked. */
+const extrasNote = (n: number) => `${n} extra${n === 1 ? "" : "s"}: +${dollars(n * PRICE_CENTS.addOn)}`;
 import { useRouter } from "next/navigation";
 import { addFootageAction, submitProject, submitScript } from "@/app/actions";
 import {
@@ -741,7 +745,8 @@ export function ProjectForm({
         >
           {values.hookCount > 1 || values.visualCtas > 1 ? (
             <>
-              <strong>Additional charges apply.</strong> Each extra visual hook or visual CTA is billed on top of your project.
+              <strong>Additional charges apply.</strong> Each extra visual hook or visual CTA is {dollars(PRICE_CENTS.addOn)} on top
+              of your project ({extrasNote(extras(values.hookCount) + extras(values.visualCtas))}). We’ll confirm the cost with you before we start.
             </>
           ) : (
             "Switch one on if you’d like it — the first of each is included. Written hooks and CTAs are added in the script step."
@@ -921,8 +926,8 @@ function ScriptFields({
         >
           {isExtraCost(value) ? (
             <>
-              <strong>Additional charges apply.</strong> Each extra hook or call to action is billed on top of your project.
-              We’ll confirm the cost with you before we start.
+              <strong>Additional charges apply.</strong> Each extra hook or call to action is {dollars(PRICE_CENTS.addOn)} on top
+              of your project ({extrasNote(extras(value.hooks) + extras(value.ctas))}). We’ll confirm the cost with you before we start.
             </>
           ) : (
             "Switch on what you’d like us to write — the first of each is included. Add more to test different versions (extra cost)."
@@ -997,7 +1002,7 @@ function CountPicker({
               {n === 0 ? "Off" : n}
               {n > 0 && (
                 <span className={`text-[0.62rem] font-semibold ${n > SCRIPT_INCLUDED ? "text-orange-ink" : "text-muted"}`}>
-                  {n > SCRIPT_INCLUDED ? "Extra cost" : "Included"}
+                  {n > SCRIPT_INCLUDED ? `+${dollars((n - SCRIPT_INCLUDED) * PRICE_CENTS.addOn)}` : "Included"}
                 </span>
               )}
             </button>
