@@ -11,7 +11,7 @@ export async function GET() {
   const viewer = await getViewer();
   if (!viewer) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
   try {
-    return NextResponse.json({ comments: await getComments(viewer.id, viewer.name) }, { headers: noStore });
+    return NextResponse.json({ comments: await getComments(viewer.id, viewer.name, true) }, { headers: noStore });
   } catch (error) {
     console.error("Failed to load comments:", error);
     return NextResponse.json({ error: "Could not load comments" }, { status: 502, headers: noStore });
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
   try {
     await addComment(viewer.name, text, viewer.id);
-    return NextResponse.json({ comments: await getComments(viewer.id, viewer.name) }, { headers: noStore });
+    return NextResponse.json({ comments: await getComments(viewer.id, viewer.name, true) }, { headers: noStore });
   } catch (error) {
     console.error("Failed to post comment:", error);
     return NextResponse.json({ error: "Could not post comment" }, { status: 502, headers: noStore });

@@ -35,7 +35,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
   const [tasks, files, comments] = await Promise.all([
     getTasks(viewer.brandIds),
     getFiles(viewer.brandIds),
-    getComments(viewer.id, viewer.name).catch((error): PortalComment[] | null => {
+    getComments(viewer.id, viewer.name, true).catch((error): PortalComment[] | null => {
       console.error("Failed to load comments:", error);
       return null;
     }),

@@ -1225,7 +1225,13 @@ function botUserId(): Promise<string> {
  * Portal posts are authored by the integration with the poster's name, so on shared brands
  * a post is "You" only if it carries the viewer's own name — a partner's shows their name.
  */
-export async function getComments(pageId: string, viewerName: string): Promise<PortalComment[]> {
+/**
+ * Comments on a page. Portal posts carry the poster's name. In someone's own Messages thread
+ * (their People row) only they post through the portal, so every portal post there is theirs,
+ * even if you've since renamed them (e.g. "Liam" → "Liam S"). On shared video threads the
+ * name tells co-workers apart, so keep names unique within a brand.
+ */
+export async function getComments(pageId: string, viewerName: string, ownThread = false): Promise<PortalComment[]> {
   const [botId, comments] = await Promise.all([
     botUserId(),
     collectPaginatedAPI(notion().comments.list, { block_id: pageId }),
@@ -1235,7 +1241,7 @@ export async function getComments(pageId: string, viewerName: string): Promise<P
     .map((c) => {
       const viaPortal = c.created_by.id === botId && c.display_name?.type === "custom";
       const name = c.display_name?.resolved_name ?? "";
-      const mine = viaPortal && (!name || name.trim().toLowerCase() === viewerName.trim().toLowerCase());
+      const mine = viaPortal && (ownThread || !name || name.trim().toLowerCase() === viewerName.trim().toLowerCase());
       return {
         id: c.id,
         text: richText(c.rich_text),
