@@ -13,20 +13,18 @@ export const BRAND_PROPS = {
 /** Billing accounts database — one row per invoice recipient. Found through each brand's link. */
 export const BILLING_ACCOUNT_PROPS = {
   name: "Name",
-  stripeCustomer: "Stripe customer ID", // Text — cus_…, pasted in once they subscribe
 } as const;
 
 /** Charges database (env CHARGES_DB_ID, defaults to the one in your Client Portal) — one row per approved video. */
 export const DEFAULT_CHARGES_DB_ID = "57c151c5d000444fae391759509e07ba";
 export const CHARGE_PROPS = {
   video: "Video", // Title
-  invoice: "Invoice", // Select — "<account> — <period>" (the invoice it belongs on)
+  invoice: "Invoice", // Select — "<account> — <month>", e.g. "Jack & Liam — November 2026"
   brand: "Brand", // Text
   breakdown: "Breakdown", // Text
   total: "Total", // Number (AUD)
   late: "Late", // Checkbox
   approvedOn: "Approved on", // Date
-  period: "Period", // Date range
   account: "Billing account", // Relation to Billing accounts
   task: "Task", // Relation to Tasks — one charge per video
   videoEdits: "Video edits", // Number — Stripe quantity

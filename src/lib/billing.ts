@@ -8,8 +8,8 @@
  * - 24-hour guarantee: if the first delivery (first time Ready for review) came more than 24 hours
  *   after the footage was sent, the video and its add-ons are free. Change requests after that
  *   don't affect it.
- * - Billing periods follow the client's Stripe subscription: from the renewal day to the day
- *   before the next one (e.g. 12 Nov–11 Dec), labelled by the month it starts in.
+ * - Charges are grouped by billing account (who pays) and calendar month, in Melbourne time
+ *   (e.g. "Jack & Liam — November 2026"). You invoice each group's total in Stripe at month end.
  */
 
 export const CURRENCY = "AUD";
@@ -102,7 +102,7 @@ export function computeCharge(input: ChargeInput): Charge {
 }
 
 // ---------------------------------------------------------------------------
-// Billing periods
+// Months
 // ---------------------------------------------------------------------------
 
 type Ymd = { y: number; m: number; d: number }; // m is 1–12
@@ -114,47 +114,17 @@ export function localDate(at: Date, timeZone = BILLING_TIME_ZONE): Ymd {
   return { y: get("year"), m: get("month"), d: get("day") };
 }
 
-const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
-const iso = ({ y, m, d }: Ymd) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-const addMonths = (y: number, m: number, n: number) => {
-  const total = y * 12 + (m - 1) + n;
-  return { y: Math.floor(total / 12), m: (total % 12) + 1 };
-};
-/** The renewal day in a given month (a 31st renews on the 30th in a 30-day month, as Stripe does). */
-const renewalIn = (y: number, m: number, anchorDay: number): Ymd => ({ y, m, d: Math.min(anchorDay, daysIn(y, m)) });
-const before = (a: Ymd, b: Ymd) => iso(a) < iso(b);
-const dayBefore = ({ y, m, d }: Ymd): Ymd => {
-  if (d > 1) return { y, m, d: d - 1 };
-  const p = addMonths(y, m, -1);
-  return { ...p, d: daysIn(p.y, p.m) };
-};
-
-export type Period = { start: string; end: string; label: string };
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/**
- * The billing period containing `approvedAt`, for a subscription renewing on the anchor's day.
- * Null if the approval came before the subscription started.
- */
-export function billingPeriod(approvedAt: Date, anchor: Date, subscriptionStart: Date): Period | null {
-  const day = localDate(approvedAt);
-  if (before(day, localDate(subscriptionStart))) return null;
-  const anchorDay = localDate(anchor).d;
-  let start = renewalIn(day.y, day.m, anchorDay);
-  if (before(day, start)) {
-    const p = addMonths(day.y, day.m, -1);
-    start = renewalIn(p.y, p.m, anchorDay);
-  }
-  const n = addMonths(start.y, start.m, 1);
-  const end = dayBefore(renewalIn(n.y, n.m, anchorDay));
-  const label = `${MONTHS[start.m - 1]} ${start.y} (${start.d} ${SHORT[start.m - 1]}–${end.d} ${SHORT[end.m - 1]})`;
-  return { start: iso(start), end: iso(end), label };
+/** The calendar month (in Melbourne time) a video was approved in, e.g. "November 2026". */
+export function billingMonth(approvedAt: Date): string {
+  const { y, m } = localDate(approvedAt);
+  return `${MONTHS[m - 1]} ${y}`;
 }
 
 /** Group name for the Charges "Invoice" column (Notion select options can't contain commas). */
-export function invoiceName(account: string | null, period: Period | null): string {
+export function invoiceName(account: string | null, month: string): string {
   const who = account?.trim() || "Unassigned";
-  return `${who} — ${period ? period.label : "No subscription yet"}`.replace(/,/g, " ").slice(0, 100);
+  return `${who} — ${month}`.replace(/,/g, " ").slice(0, 100);
 }

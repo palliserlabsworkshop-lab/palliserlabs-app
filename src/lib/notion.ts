@@ -42,8 +42,7 @@ import { ownBrandOf } from "./scope";
 import { briefRows, FORMAT_OPTIONS, labelsFor, parseBrief, PLATFORM_OPTIONS, type Brief } from "./brief";
 import { scriptAdds, scriptKind, type ScriptRequest } from "./script";
 import { hashPin, isPinHash, verifyPinHash } from "./pin";
-import { BILLING_START_DATE, billingPeriod, computeCharge, invoiceName, localDate } from "./billing";
-import { subscriptionAt } from "./stripe";
+import { BILLING_START_DATE, billingMonth, computeCharge, invoiceName, localDate } from "./billing";
 
 // ---------------------------------------------------------------------------
 // Client + data source resolution
@@ -1296,7 +1295,7 @@ export async function addComment(authorName: string, text: string, pageId: strin
 // Charges — one row per approved video, grouped into invoices (see src/lib/billing.ts)
 // ---------------------------------------------------------------------------
 
-type BillingAccount = { id: string; name: string; stripeCustomer: string };
+type BillingAccount = { id: string; name: string };
 
 async function retrievePage(pageId: string): Promise<PageObjectResponse | null> {
   try {
@@ -1321,7 +1320,6 @@ async function billingAccountForBrand(brandId: string): Promise<{ brandName: str
     account: {
       id: page.id,
       name: getText(page, BILLING_ACCOUNT_PROPS.name, true),
-      stripeCustomer: getText(page, BILLING_ACCOUNT_PROPS.stripeCustomer).trim(),
     },
   };
 }
@@ -1358,8 +1356,6 @@ async function createChargeForTask(task: PageObjectResponse, approvedAt: Date, a
     deliveredOn: getDate(task, TASK_PROPS.deliveredOn),
   });
 
-  const sub = account?.stripeCustomer ? await subscriptionAt(account.stripeCustomer, approvedAt) : null;
-  const period = sub ? billingPeriod(approvedAt, sub.anchor, sub.start) : null;
 
   const ds = await dataSource(env.chargesDbId);
   const names = Object.keys(ds.schema);
@@ -1371,7 +1367,7 @@ async function createChargeForTask(task: PageObjectResponse, approvedAt: Date, a
   };
   const titleName = names.find((n) => ds.schema[n] === "title") ?? CHARGE_PROPS.video;
   props[titleName] = { title: chunkText(getText(task, TASK_PROPS.title, true) || "Untitled video") };
-  set(CHARGE_PROPS.invoice, "select", { select: { name: invoiceName(account?.name ?? null, period) } });
+  set(CHARGE_PROPS.invoice, "select", { select: { name: invoiceName(account?.name ?? null, billingMonth(approvedAt)) } });
   set(CHARGE_PROPS.brand, "rich_text", { rich_text: chunkText(brandName) });
   set(CHARGE_PROPS.breakdown, "rich_text", { rich_text: chunkText(charge.breakdown) });
   set(CHARGE_PROPS.total, "number", { number: charge.totalCents / 100 });
@@ -1379,7 +1375,6 @@ async function createChargeForTask(task: PageObjectResponse, approvedAt: Date, a
   const day = localDate(approvedAt);
   const approvedDay = `${day.y}-${String(day.m).padStart(2, "0")}-${String(day.d).padStart(2, "0")}`;
   set(CHARGE_PROPS.approvedOn, "date", { date: { start: approvedDay } });
-  if (period) set(CHARGE_PROPS.period, "date", { date: { start: period.start, end: period.end } });
   if (account) set(CHARGE_PROPS.account, "relation", { relation: [{ id: account.id }] });
   set(CHARGE_PROPS.task, "relation", { relation: [{ id: task.id }] });
   set(CHARGE_PROPS.videoEdits, "number", { number: charge.videoEdits });
