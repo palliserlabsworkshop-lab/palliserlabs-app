@@ -4,15 +4,31 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { PRICE_CENTS, dollars, extras } from "@/lib/billing";
 
-/** "1 extra: +$5" / "3 extras: +$15" — the running cost of what's been picked. */
-const extrasNote = (n: number) => `${n} extra${n === 1 ? "" : "s"}: +${dollars(n * PRICE_CENTS.addOn)}`;
+/**
+ * Apple-style price summary for add-ons: a quiet hint until something costs extra, then one calm
+ * line with the running total (like a configurator), never a warning box.
+ */
+function ExtrasSummary({ count, hint }: { count: number; hint: string }) {
+  if (count === 0) return <p className="mt-2.5 px-1 text-[0.75rem] leading-relaxed text-muted">{hint}</p>;
+  return (
+    <div className="mt-3 animate-rise rounded-xl bg-surface px-4 py-3" aria-live="polite">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[0.8rem] text-foreground">
+          {count} extra{count === 1 ? "" : "s"}
+          <span className="text-muted"> · {dollars(PRICE_CENTS.addOn)} each</span>
+        </span>
+        <span className="text-[0.9rem] font-semibold tabular-nums text-foreground">+{dollars(count * PRICE_CENTS.addOn)}</span>
+      </div>
+      <p className="mt-1 text-[0.7rem] text-muted">Added to your monthly invoice.</p>
+    </div>
+  );
+}
 import { useRouter } from "next/navigation";
 import { addFootageAction, submitProject, submitScript } from "@/app/actions";
 import {
   CTAS_MAX,
   SCRIPT_INCLUDED,
   SCRIPT_MAX_LENGTH,
-  isExtraCost,
   SCRIPT_TURNAROUND_LABEL,
   WRITTEN_HOOKS_MAX,
   validateScriptRequest,
@@ -737,21 +753,10 @@ export function ProjectForm({
           <CountPicker label="Visual hooks — different opening shots" value={values.hookCount} max={HOOKS_MAX} onChange={(n) => set("hookCount", n)} />
           <CountPicker label="Visual CTAs — an on-screen call to action" value={values.visualCtas} max={VISUAL_CTAS_MAX} onChange={(n) => set("visualCtas", n)} />
         </div>
-        <p
-          key={values.hookCount > 1 || values.visualCtas > 1 ? "paid" : "free"}
-          className={`mt-2.5 animate-rise rounded-xl px-3.5 py-2.5 text-[0.75rem] leading-relaxed ${
-            values.hookCount > 1 || values.visualCtas > 1 ? "bg-orange/10 text-orange-ink" : "text-muted"
-          }`}
-        >
-          {values.hookCount > 1 || values.visualCtas > 1 ? (
-            <>
-              <strong>Additional charges apply.</strong> Each extra visual hook or visual CTA is {dollars(PRICE_CENTS.addOn)} on top
-              of your project ({extrasNote(extras(values.hookCount) + extras(values.visualCtas))}). We’ll confirm the cost with you before we start.
-            </>
-          ) : (
-            "Switch one on if you’d like it — the first of each is included. Written hooks and CTAs are added in the script step."
-          )}
-        </p>
+        <ExtrasSummary
+          count={extras(values.hookCount) + extras(values.visualCtas)}
+          hint="Switch one on if you’d like it. The first of each is included. Written hooks and CTAs are in the script step."
+        />
       </div>
 
       {/* Platform */}
@@ -918,21 +923,10 @@ function ScriptFields({
           <CountPicker label="Written hooks" value={value.hooks} max={WRITTEN_HOOKS_MAX} invalid={Boolean(errors.adds)} onChange={(n) => onChange("hooks", n)} />
           <CountPicker label="Calls to action" value={value.ctas} max={CTAS_MAX} invalid={Boolean(errors.adds)} onChange={(n) => onChange("ctas", n)} />
         </div>
-        <p
-          key={isExtraCost(value) ? "paid" : "free"}
-          className={`mt-2.5 animate-rise rounded-xl px-3.5 py-2.5 text-[0.75rem] leading-relaxed ${
-            isExtraCost(value) ? "bg-orange/10 text-orange-ink" : "text-muted"
-          }`}
-        >
-          {isExtraCost(value) ? (
-            <>
-              <strong>Additional charges apply.</strong> Each extra hook or call to action is {dollars(PRICE_CENTS.addOn)} on top
-              of your project ({extrasNote(extras(value.hooks) + extras(value.ctas))}). We’ll confirm the cost with you before we start.
-            </>
-          ) : (
-            "Switch on what you’d like us to write — the first of each is included. Add more to test different versions (extra cost)."
-          )}
-        </p>
+        <ExtrasSummary
+          count={extras(value.hooks) + extras(value.ctas)}
+          hint="Switch on what you’d like us to write. The first of each is included."
+        />
       </div>
 
       <div>
@@ -1001,7 +995,7 @@ function CountPicker({
             >
               {n === 0 ? "Off" : n}
               {n > 0 && (
-                <span className={`text-[0.62rem] font-semibold ${n > SCRIPT_INCLUDED ? "text-orange-ink" : "text-muted"}`}>
+                <span className="text-[0.62rem] font-medium tabular-nums text-muted">
                   {n > SCRIPT_INCLUDED ? `+${dollars((n - SCRIPT_INCLUDED) * PRICE_CENTS.addOn)}` : "Included"}
                 </span>
               )}
