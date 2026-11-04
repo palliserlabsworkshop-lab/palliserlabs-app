@@ -52,6 +52,7 @@ The app reads each database's schema at runtime, so property types are flexible:
   - Once the script is approved, the same project asks the client for footage (`/dashboard/projects/:id/footage`). That adds the video brief to the same row and sets `Status` to *Queued*, and from there it follows the normal video flow. Approving also sets `Status` to *Awaiting footage* (add that option too), so the row moves from the Scripts board to the Videos board, with a "✍️ Script attached" formula column on approved scripts.
   - Cards show a progress line: Script → Footage → Editing → Review → Done.
 - **Video review**: set Status to *Ready for review* with a `Final Video` link (Drive file or folder), and the video appears at the top of the client's dashboard as a tile with a play button that opens it in Google Drive. The thumbnail is fetched server-side through `/api/videos/:id/thumbnail`, so it also loads on phones. Phone browsers block Drive's embedded player, so the app doesn't embed it.
+  - If Status is *Ready for review* but `Final Video` is empty, the card says "Your video is on its way" with no Approve button, and the server also refuses approvals and change requests until the link is there.
   - **Approve** sets *Approved* and `Approved on`.
   - **Request changes** sets *Tweaks requested*, adds 1 to `Revision round`, and posts the request as a comment on the task page.
   - Each video has its own feedback thread, made of page-level comments on the task.

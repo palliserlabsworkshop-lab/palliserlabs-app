@@ -49,7 +49,8 @@ async function Dashboard({ searchParams }: { searchParams: Promise<{ brand?: str
   // when a brand pill is tapped (instant), always within the viewer's own brands.
   const reviewTasks = tasks.filter(needsClient);
   const boardTasks = tasks.filter((t) => !needsClient(t));
-  const toReview = reviewTasks.filter((t) => reviewStage(t) === "review" || scriptInReview(t)).length;
+  // Only count what can actually be reviewed now (a video marked ready without its link isn't watchable yet).
+  const toReview = reviewTasks.filter((t) => (reviewStage(t) === "review" && t.finalVideo) || scriptInReview(t)).length;
   const footageDue = reviewTasks.filter((t) => !reviewStage(t) && awaitingFootage(t)).length;
 
   return (

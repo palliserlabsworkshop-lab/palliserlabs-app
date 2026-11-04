@@ -217,11 +217,34 @@ function ReviewCard({ task, brandName }: { task: Task; brandName?: string }) {
     );
   }
 
+  // Marked ready in Notion but no Final Video link yet: nothing to watch, so nothing to approve.
+  if (!task.finalVideo) {
+    return (
+      <article className="card animate-rise overflow-hidden">
+        {header}
+        <div className="mx-5 mb-5 mt-4 flex gap-3 rounded-2xl bg-surface p-4">
+          <span className="relative mt-1 flex h-2.5 w-2.5 shrink-0" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange opacity-50" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange" />
+          </span>
+          <div>
+            <p className="text-[0.85rem] font-semibold text-foreground">Your video is on its way</p>
+            <p className="mt-1 text-[0.8rem] leading-relaxed text-muted">
+              It’ll appear right here to watch and approve in a moment.
+            </p>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   // stage === "review"
   return (
     <article className="card animate-rise overflow-hidden ring-2 ring-orange/40">
       {header}
-      <div className="px-5 pt-4">{task.finalVideo ? <Player link={task.finalVideo} taskId={task.id} /> : null}</div>
+      <div className="px-5 pt-4">
+        <Player link={task.finalVideo} taskId={task.id} />
+      </div>
 
       <div className="p-5">
         {flash ? (

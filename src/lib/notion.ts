@@ -739,6 +739,8 @@ export async function approveVideo(actor: Actor, taskId: string): Promise<Review
   if (statusKind(getText(page, TASK_PROPS.status)) !== "review") {
     return { ok: false, error: "This video isn’t waiting for review any more." };
   }
+  // Nothing to approve (or comment on) until there's a Final Video to watch.
+  if (!getText(page, TASK_PROPS.finalVideo)) return { ok: false, error: "This video isn’t ready to watch yet." };
   try {
     await updateTask(page.id, { status: APPROVED_STATUS, dates: { [TASK_PROPS.approvedOn]: today() } });
   } catch (error) {
@@ -757,6 +759,8 @@ export async function requestTweaks(actor: Actor, taskId: string, req: TweakRequ
   if (statusKind(getText(page, TASK_PROPS.status)) !== "review") {
     return { ok: false, error: "This video isn’t waiting for review any more." };
   }
+  // Nothing to approve (or comment on) until there's a Final Video to watch.
+  if (!getText(page, TASK_PROPS.finalVideo)) return { ok: false, error: "This video isn’t ready to watch yet." };
   const round = (getNumber(page, TASK_PROPS.revisionRound) ?? 1) + 1;
   try {
     await updateTask(page.id, { status: TWEAKS_STATUS, numbers: { [TASK_PROPS.revisionRound]: round } });
