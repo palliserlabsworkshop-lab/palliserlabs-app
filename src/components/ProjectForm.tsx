@@ -19,7 +19,7 @@ import {
   FORMAT_OPTIONS,
   HOOKS_DEFAULT,
   HOOKS_MAX,
-  HOOKS_MIN,
+  VISUAL_CTAS_MAX,
   MAX_REFERENCE_LINKS,
   MAX_DRIVE_LINKS,
   PLATFORM_OPTIONS,
@@ -46,6 +46,7 @@ const FIELD_ORDER: BriefField[] = [
   "purpose",
   "style",
   "hookCount",
+  "visualCtas",
   "platform",
   "referenceLinks",
 ];
@@ -147,7 +148,7 @@ function ChipGroup({
 
 const SCRIPT_FIELD_ORDER: ScriptField[] = ["projectName", "script", "adds"];
 
-const EMPTY_SCRIPT = { text: "", link: "", hooks: 1, ctas: 1, notes: "" };
+const EMPTY_SCRIPT = { text: "", link: "", hooks: 0, ctas: 0, notes: "" };
 
 type Kind = "script" | "video";
 
@@ -219,6 +220,7 @@ const EMPTY = {
   purpose: [] as string[],
   style: [] as string[],
   hookCount: HOOKS_DEFAULT,
+  visualCtas: 0,
   deadline: "",
   platform: [] as string[],
   referenceLinks: [""],
@@ -724,44 +726,25 @@ export function ProjectForm({
         />
       </div>
 
-      {/* Hooks — a segmented choice beats typing a number */}
+      {/* Visual add-ons: off by default; the first of each is included, extras are billed */}
       <div data-field="hookCount">
-        <GroupHeader label="Visual hook variants" hint={`Up to ${HOOKS_MAX}`} error={errors.hookCount} errorId="err-hookCount" />
-        <div role="radiogroup" aria-label="Number of visual hook variants" className="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1">
-          {Array.from({ length: HOOKS_MAX - HOOKS_MIN + 1 }, (_, i) => HOOKS_MIN + i).map((n) => {
-            const checked = values.hookCount === n;
-            return (
-              <button
-                key={n}
-                type="button"
-                role="radio"
-                aria-checked={checked}
-                onClick={() => set("hookCount", n)}
-                className={`pressable flex min-h-12 flex-col items-center justify-center rounded-xl py-1.5 text-[0.85rem] font-semibold leading-tight ${
-                  checked ? "bg-thumb text-foreground shadow-[0_1px_2px_rgb(0_0_0/0.08),0_2px_8px_-2px_rgb(0_0_0/0.12)] ring-1 ring-black/[0.04]" : "text-muted hover:text-foreground"
-                }`}
-              >
-                {n === 1 ? "1 hook" : `${n} hooks`}
-                <span className={`text-[0.66rem] font-semibold ${n === 1 ? "text-muted" : "text-orange-ink"}`}>
-                  {n === 1 ? "Included" : "Extra cost"}
-                </span>
-              </button>
-            );
-          })}
+        <GroupHeader label="Visual add-ons" hint="Optional" error={errors.hookCount ?? errors.visualCtas} errorId="err-hookCount" />
+        <div className="space-y-3">
+          <CountPicker label="Visual hooks — different opening shots" value={values.hookCount} max={HOOKS_MAX} onChange={(n) => set("hookCount", n)} />
+          <CountPicker label="Visual CTAs — an on-screen call to action" value={values.visualCtas} max={VISUAL_CTAS_MAX} onChange={(n) => set("visualCtas", n)} />
         </div>
         <p
-          key={values.hookCount > 1 ? "paid" : "free"}
-          className={`mt-2 animate-rise rounded-xl px-3.5 py-2.5 text-[0.75rem] leading-relaxed ${
-            values.hookCount > 1 ? "bg-orange/10 text-orange-ink" : "text-muted"
+          key={values.hookCount > 1 || values.visualCtas > 1 ? "paid" : "free"}
+          className={`mt-2.5 animate-rise rounded-xl px-3.5 py-2.5 text-[0.75rem] leading-relaxed ${
+            values.hookCount > 1 || values.visualCtas > 1 ? "bg-orange/10 text-orange-ink" : "text-muted"
           }`}
         >
-          {values.hookCount > 1 ? (
+          {values.hookCount > 1 || values.visualCtas > 1 ? (
             <>
-              <strong>Additional charges apply.</strong> Each extra visual hook (a different opening shot) is billed on top of your project. We’ll
-              confirm the cost with you before we start.
+              <strong>Additional charges apply.</strong> Each extra visual hook or visual CTA is billed on top of your project.
             </>
           ) : (
-            "Different opening shots to test — not words. One is included. Written hooks are added in the script step."
+            "Switch one on if you’d like it — the first of each is included. Written hooks and CTAs are added in the script step."
           )}
         </p>
       </div>
@@ -942,7 +925,7 @@ function ScriptFields({
               We’ll confirm the cost with you before we start.
             </>
           ) : (
-            "1 written hook and 1 call to action are included. Add more to test different versions (extra cost)."
+            "Switch on what you’d like us to write — the first of each is included. Add more to test different versions (extra cost)."
           )}
         </p>
       </div>
@@ -976,7 +959,7 @@ function ScriptFields({
   );
 }
 
-/** None / 1 / 2 / 3 picker for the script step. 1 is included; more is marked as extra cost. */
+/** Off / 1 / 2 / 3 picker for add-ons. 1 is included; more is marked as extra cost. */
 function CountPicker({
   label,
   value,
@@ -1011,7 +994,7 @@ function CountPicker({
                 checked ? "bg-thumb text-foreground shadow-[0_1px_2px_rgb(0_0_0/0.08),0_2px_8px_-2px_rgb(0_0_0/0.12)] ring-1 ring-black/[0.04]" : "text-muted hover:text-foreground"
               }`}
             >
-              {n === 0 ? "None" : n}
+              {n === 0 ? "Off" : n}
               {n > 0 && (
                 <span className={`text-[0.62rem] font-semibold ${n > SCRIPT_INCLUDED ? "text-orange-ink" : "text-muted"}`}>
                   {n > SCRIPT_INCLUDED ? "Extra cost" : "Included"}

@@ -7,6 +7,33 @@ export const BRAND_PROPS = {
   name: "Name",
   status: "Status",
   type: "Type", // Select — "Business" or "Personal brand"
+  billingAccount: "Billing account", // Relation to Billing accounts — who pays for this brand's videos
+} as const;
+
+/** Billing accounts database — one row per invoice recipient. Found through each brand's link. */
+export const BILLING_ACCOUNT_PROPS = {
+  name: "Name",
+  stripeCustomer: "Stripe customer ID", // Text — cus_…, pasted in once they subscribe
+} as const;
+
+/** Charges database (env CHARGES_DB_ID, defaults to the one in your Client Portal) — one row per approved video. */
+export const DEFAULT_CHARGES_DB_ID = "57c151c5d000444fae391759509e07ba";
+export const CHARGE_PROPS = {
+  video: "Video", // Title
+  invoice: "Invoice", // Select — "<account> — <period>" (the invoice it belongs on)
+  brand: "Brand", // Text
+  breakdown: "Breakdown", // Text
+  total: "Total", // Number (AUD)
+  late: "Late", // Checkbox
+  approvedOn: "Approved on", // Date
+  period: "Period", // Date range
+  account: "Billing account", // Relation to Billing accounts
+  task: "Task", // Relation to Tasks — one charge per video
+  videoEdits: "Video edits", // Number — Stripe quantity
+  extraWrittenHooks: "Extra written hooks",
+  extraVisualHooks: "Extra visual hooks",
+  extraWrittenCtas: "Extra written CTAs",
+  extraVisualCtas: "Extra visual CTAs",
 } as const;
 
 /** Brand Type value for personal brands (case-insensitive match). */
@@ -31,6 +58,11 @@ export const TASK_PROPS = {
   scriptStatus: "Script status", // Select — Queued / Ready for review / Changes requested / Approved (empty = no script step)
   script: "Script", // Text — starts as the client's script; edit it into the final script
   scriptLink: "Script Link", // URL — the client's Google Doc/Drive link, or your final Google Doc
+  writtenHooks: "Written hooks", // Number — from the script step (1 included, extras billed)
+  writtenCtas: "Written CTAs", // Number — from the script step (1 included, extras billed)
+  visualCtas: "Visual CTAs", // Number — from the video brief (1 included, extras billed)
+  footageSent: "Footage sent", // Date — when the client sent footage: starts the 24-hour clock
+  deliveredOn: "Delivered on", // Date — first time it was Ready for review: stops the clock
 } as const;
 
 /** Script status options (Select on the Tasks DB). The video keeps using Status. */

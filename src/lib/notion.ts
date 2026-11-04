@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   Client,
@@ -29,6 +30,8 @@ import {
   HIDE_DONE_AFTER_DAYS,
   NEW_PROJECT_STATUS,
   AWAITING_FOOTAGE_STATUS,
+  BILLING_ACCOUNT_PROPS,
+  CHARGE_PROPS,
   SCRIPT_STAGE_STATUS,
   SCRIPT_STATUS,
   TASK_PROPS,
@@ -39,6 +42,8 @@ import { ownBrandOf } from "./scope";
 import { briefRows, FORMAT_OPTIONS, labelsFor, parseBrief, PLATFORM_OPTIONS, type Brief } from "./brief";
 import { scriptAdds, scriptKind, type ScriptRequest } from "./script";
 import { hashPin, isPinHash, verifyPinHash } from "./pin";
+import { BILLING_START_DATE, billingPeriod, computeCharge, invoiceName, localDate } from "./billing";
+import { subscriptionAt } from "./stripe";
 
 // ---------------------------------------------------------------------------
 // Client + data source resolution
@@ -746,6 +751,9 @@ export async function approveVideo(actor: Actor, taskId: string): Promise<Review
   } catch (error) {
     return reviewError(error, APPROVED_STATUS);
   }
+  // Add it to this period's invoice in Charges, after the client's response has been sent
+  // (it never slows down, blocks or undoes the approval; the daily catch-up retries any failure).
+  after(() => chargeApprovedVideo(page));
   await addComment(actor.name, "✅ Approved — thank you!", page.id).catch(() => {});
   return { ok: true };
 }
@@ -966,7 +974,12 @@ function videoBriefProps(cols: Awaited<ReturnType<typeof taskColumns>>, brief: B
   const dueName = col(TASK_PROPS.dueDate);
   if (type(dueName) === "date" && brief.deadline) optional[dueName] = { date: { start: brief.deadline } };
   const hooksName = col(TASK_PROPS.hooks);
-  if (type(hooksName) === "number" && brief.hookCount) optional[hooksName] = { number: brief.hookCount };
+  if (type(hooksName) === "number" && typeof brief.hookCount === "number") optional[hooksName] = { number: brief.hookCount };
+  const visualCtasName = col(TASK_PROPS.visualCtas);
+  if (type(visualCtasName) === "number") optional[visualCtasName] = { number: brief.visualCtas ?? 0 };
+  // Footage is in: the 24-hour delivery clock starts now.
+  const footageName = col(TASK_PROPS.footageSent);
+  if (type(footageName) === "date") optional[footageName] = { date: { start: new Date().toISOString() } };
   // Multi-select option names can't contain commas, so "Other" is written plainly (details are in the brief).
   const options = (labels: string[]) => labels.map((name) => ({ name: name.replace(/,/g, " ").slice(0, 100) }));
   const formatName = col(TASK_PROPS.format);
@@ -1064,6 +1077,10 @@ export async function createScriptProject(actor: Actor, brandId: string, request
   const status = optionValue(cols.type(statusName), SCRIPT_STATUS.queued);
   if (status) essentials[statusName] = status;
   if (cols.type(scriptName) === "rich_text" && request.text) optional[scriptName] = { rich_text: chunkText(request.text) };
+  const writtenHooksName = cols.col(TASK_PROPS.writtenHooks);
+  if (cols.type(writtenHooksName) === "number") optional[writtenHooksName] = { number: request.hooks };
+  const writtenCtasName = cols.col(TASK_PROPS.writtenCtas);
+  if (cols.type(writtenCtasName) === "number") optional[writtenCtasName] = { number: request.ctas };
   if (cols.type(linkName) === "url" && request.link) optional[linkName] = { url: request.link };
   else if (cols.type(linkName) === "rich_text" && request.link) optional[linkName] = { rich_text: chunkText(request.link) };
   return createTaskPage(cols, SCRIPT_ICON, essentials, optional, scriptBlocks(request));
@@ -1273,4 +1290,140 @@ export async function addComment(authorName: string, text: string, pageId: strin
     if (!isNotionClientError(error) || error.code !== APIErrorCode.ValidationError) throw error;
     await notion().comments.create(base);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Charges — one row per approved video, grouped into invoices (see src/lib/billing.ts)
+// ---------------------------------------------------------------------------
+
+type BillingAccount = { id: string; name: string; stripeCustomer: string };
+
+async function retrievePage(pageId: string): Promise<PageObjectResponse | null> {
+  try {
+    const page = await notion().pages.retrieve({ page_id: pageId });
+    return isFullPage(page) && !page.in_trash ? page : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Who pays for a brand: the Billing account linked on its Brands row (null if none set yet). */
+async function billingAccountForBrand(brandId: string): Promise<{ brandName: string; account: BillingAccount | null }> {
+  const brand = await retrievePage(brandId);
+  if (!brand) return { brandName: "", account: null };
+  const brandName = getText(brand, BRAND_PROPS.name, true);
+  const rel = resolveName(Object.keys(brand.properties), BRAND_PROPS.billingAccount);
+  const [accountId] = relationIds(brand, rel);
+  const page = accountId ? await retrievePage(accountId) : null;
+  if (!page) return { brandName, account: null };
+  return {
+    brandName,
+    account: {
+      id: page.id,
+      name: getText(page, BILLING_ACCOUNT_PROPS.name, true),
+      stripeCustomer: getText(page, BILLING_ACCOUNT_PROPS.stripeCustomer).trim(),
+    },
+  };
+}
+
+/** IDs of tasks that already have a charge (so a video is never charged twice). */
+async function chargedTaskIds(): Promise<Set<string>> {
+  const ds = await dataSource(env.chargesDbId);
+  const taskCol = resolveName(Object.keys(ds.schema), CHARGE_PROPS.task);
+  const pages = await queryAll(ds);
+  return new Set(pages.flatMap((p) => relationIds(p, taskCol)).map(normalizeNotionId));
+}
+
+/**
+ * Creates the charge row for one approved video. Safe to call more than once: if the video already
+ * has a charge, nothing happens. Never throws into the approval flow — failures are logged and the
+ * daily catch-up tries again.
+ */
+async function createChargeForTask(task: PageObjectResponse, approvedAt: Date, alreadyCharged?: Set<string>): Promise<boolean> {
+  const id = normalizeNotionId(task.id);
+  const charged = alreadyCharged ?? (await chargedTaskIds());
+  if (charged.has(id)) return false;
+
+  const tasksDs = await dataSource(env.tasksDbId);
+  const brandCol = brandColumn(tasksDs.schema, TASK_PROPS.client);
+  const [brandId] = relationIds(task, brandCol);
+  const { brandName, account } = brandId ? await billingAccountForBrand(brandId) : { brandName: "", account: null };
+
+  const charge = computeCharge({
+    visualHooks: getNumber(task, TASK_PROPS.hooks),
+    visualCtas: getNumber(task, TASK_PROPS.visualCtas),
+    writtenHooks: getNumber(task, TASK_PROPS.writtenHooks),
+    writtenCtas: getNumber(task, TASK_PROPS.writtenCtas),
+    footageSent: getDate(task, TASK_PROPS.footageSent),
+    deliveredOn: getDate(task, TASK_PROPS.deliveredOn),
+  });
+
+  const sub = account?.stripeCustomer ? await subscriptionAt(account.stripeCustomer, approvedAt) : null;
+  const period = sub ? billingPeriod(approvedAt, sub.anchor, sub.start) : null;
+
+  const ds = await dataSource(env.chargesDbId);
+  const names = Object.keys(ds.schema);
+  const col = (wanted: string) => resolveName(names, wanted);
+  const props: Record<string, unknown> = {};
+  const set = (wanted: string, type: string, value: unknown) => {
+    const name = col(wanted);
+    if (ds.schema[name] === type) props[name] = value;
+  };
+  const titleName = names.find((n) => ds.schema[n] === "title") ?? CHARGE_PROPS.video;
+  props[titleName] = { title: chunkText(getText(task, TASK_PROPS.title, true) || "Untitled video") };
+  set(CHARGE_PROPS.invoice, "select", { select: { name: invoiceName(account?.name ?? null, period) } });
+  set(CHARGE_PROPS.brand, "rich_text", { rich_text: chunkText(brandName) });
+  set(CHARGE_PROPS.breakdown, "rich_text", { rich_text: chunkText(charge.breakdown) });
+  set(CHARGE_PROPS.total, "number", { number: charge.totalCents / 100 });
+  set(CHARGE_PROPS.late, "checkbox", { checkbox: charge.late });
+  const day = localDate(approvedAt);
+  const approvedDay = `${day.y}-${String(day.m).padStart(2, "0")}-${String(day.d).padStart(2, "0")}`;
+  set(CHARGE_PROPS.approvedOn, "date", { date: { start: approvedDay } });
+  if (period) set(CHARGE_PROPS.period, "date", { date: { start: period.start, end: period.end } });
+  if (account) set(CHARGE_PROPS.account, "relation", { relation: [{ id: account.id }] });
+  set(CHARGE_PROPS.task, "relation", { relation: [{ id: task.id }] });
+  set(CHARGE_PROPS.videoEdits, "number", { number: charge.videoEdits });
+  set(CHARGE_PROPS.extraWrittenHooks, "number", { number: charge.extraWrittenHooks });
+  set(CHARGE_PROPS.extraVisualHooks, "number", { number: charge.extraVisualHooks });
+  set(CHARGE_PROPS.extraWrittenCtas, "number", { number: charge.extraWrittenCtas });
+  set(CHARGE_PROPS.extraVisualCtas, "number", { number: charge.extraVisualCtas });
+
+  await notion().pages.create({
+    parent: { data_source_id: ds.id },
+    icon: { type: "emoji", emoji: charge.late ? "🎁" : "🧾" },
+    properties: props as Parameters<Client["pages"]["create"]>[0]["properties"],
+  });
+  charged.add(id);
+  return true;
+}
+
+/** Called right after a client approves a video. */
+async function chargeApprovedVideo(task: PageObjectResponse): Promise<void> {
+  await createChargeForTask(task, new Date()).catch((error) => console.error("Could not create charge (the daily catch-up will retry):", error));
+}
+
+/**
+ * Daily catch-up: charges any approved video (with a Final Video) that doesn't have a charge yet —
+ * e.g. one you marked Approved in Notion yourself, or one where the first attempt failed.
+ * Only approvals on or after BILLING_START_DATE are picked up, so nothing older is back-billed.
+ */
+export async function chargeUnbilledApprovals(): Promise<number> {
+  const ds = await dataSource(env.tasksDbId);
+  const charged = await chargedTaskIds();
+  const pages = await queryAll(ds);
+  let created = 0;
+  for (const page of pages) {
+    if (statusKind(getText(page, TASK_PROPS.status)) !== "done") continue;
+    if (!getText(page, TASK_PROPS.finalVideo)) continue; // a video, not a script-only job
+    const approved = getDate(page, TASK_PROPS.approvedOn) ?? page.last_edited_time.slice(0, 10);
+    if (approved < BILLING_START_DATE) continue;
+    // A date-only Approved on is taken as midday Melbourne time, so it lands on the right day.
+    const at = new Date(approved.length === 10 ? `${approved}T02:00:00Z` : approved);
+    try {
+      if (await createChargeForTask(page, at, charged)) created++;
+    } catch (error) {
+      console.error(`Could not charge ${page.id}:`, error);
+    }
+  }
+  return created;
 }

@@ -16,6 +16,7 @@ npm run dev
 | `CLIENTS_DB_ID` | The **Brands** database (URL or bare 32-character ID) |
 | `PEOPLE_DB_ID` | The **People** database |
 | `TASKS_DB_ID` / `FILES_DB_ID` | The Tasks / Deliverables and Documents databases |
+| `STRIPE_SECRET_KEY` | Optional. A **restricted** Stripe key with Customers: Read and Subscriptions: Read only, used to read billing periods |
 | `SESSION_SECRET` | A random string of at least 32 characters (`openssl rand -base64 32`) that signs login cookies |
 
 `.env.local` is git-ignored. No secret appears in the source code.
@@ -99,6 +100,12 @@ The app reads each database's schema at runtime, so property types are flexible:
   - **How it updates:** the dashboard checks in about once a minute (`/api/presence`). This sets `Last seen` (Date) and `Presence` (Online/Away) on their People row. Closing the dashboard, or 30 minutes untouched, marks them offline straight away.
   - **What you see:** the `Online` formula column shows 🟢 Online, 🟡 Away or ⚪ "2h ago". Notion recalculates it whenever you look, and shows offline once `Last seen` is 3+ minutes old.
   - **In Notion:** the **Who's online** view on People lists everyone by most recent. You can hide `Last seen` and `Presence` in your other views.
+- **Billing (Charges)**
+  - **Add-ons:** written hooks and CTAs (script step) and visual hooks and CTAs (video brief) all start **Off**. Switching one on includes the first, and each extra is $5. The counts are saved on the task (`Written hooks`, `Written CTAs`, `Hooks`, `Visual CTAs`).
+  - **24-hour clock:** `Footage sent` is set when the client sends footage. `Delivered on` should be set by a Notion automation the first time Status becomes *Ready for review*. More than 24 hours between them means the video and its add-ons are free. Change rounds don't affect this.
+  - **Charging:** when a client approves a video, a row is added to **Charges** (once per video) with the video edit ($70), the extra add-ons ($5 each), a total, and a readable breakdown. A daily catch-up adds any that were missed, including videos you mark Approved in Notion. Approvals before 1 Nov 2026 are never back-billed.
+  - **Invoices:** each charge goes on an invoice named "<Billing account> — <period>". The billing account comes from the brand's **Billing account** link. The period comes from that account's Stripe subscription (renewal day to the day before the next one), via a read-only `STRIPE_SECRET_KEY`. Before they subscribe, or without the key, charges are filed under "No subscription yet". With no billing account, they're filed under "Unassigned".
+  - **Rules and prices:** all in `src/lib/billing.ts`, which also holds the Stripe price IDs for future draft invoices.
 - **Security**
   - **Brute-force protection:** wrong PINs are counted on the person's People row (`Failed logins`). After 5 wrong PINs the account locks (`Locked until`) for 15 minutes, and the lock doubles every further 5 wrong PINs, up to 24 hours. While locked, even the right PIN is refused. Clear `Locked until` (and `Failed logins`) in Notion to unlock someone straight away. There's also a fast per-email and per-IP throttle in memory, and every failed sign-in waits about 1 second. The error message is the same whether or not an email exists.
   - **Sessions:** a signed, HttpOnly, Secure `__Host-` cookie that JavaScript can't read. It holds only the person's ID and a fingerprint of their login details, never the PIN. Changing someone's Email or App Password in Notion signs them out everywhere. Setting them Inactive blocks them on their next click.

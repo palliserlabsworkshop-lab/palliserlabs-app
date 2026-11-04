@@ -1,4 +1,5 @@
 import "server-only";
+import { DEFAULT_CHARGES_DB_ID } from "./schema";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -29,6 +30,10 @@ export const env = {
   },
   get filesDbId() {
     return normalizeNotionId(required("FILES_DB_ID"));
+  },
+  /** Optional: defaults to the Charges database created in your Client Portal. */
+  get chargesDbId() {
+    return normalizeNotionId(process.env.CHARGES_DB_ID || DEFAULT_CHARGES_DB_ID);
   },
   get peopleDbId() {
     return normalizeNotionId(required("PEOPLE_DB_ID"));

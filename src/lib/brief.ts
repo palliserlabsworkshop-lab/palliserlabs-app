@@ -43,9 +43,11 @@ export const PLATFORM_OPTIONS: Option[] = [
 ];
 
 export const STYLE_MAX = 2;
-export const HOOKS_MIN = 1;
+/** Visual hooks and visual CTAs: off by default; switching one on includes the first, extras are billed. */
+export const HOOKS_MIN = 0;
 export const HOOKS_MAX = 3;
-export const HOOKS_DEFAULT = 1;
+export const HOOKS_DEFAULT = 0;
+export const VISUAL_CTAS_MAX = 3;
 export const MAX_REFERENCE_LINKS = 10;
 export const MAX_DRIVE_LINKS = 5;
 
@@ -76,6 +78,8 @@ export type Brief = {
   style: string[];
   hookVariants: boolean;
   hookCount: number | null;
+  /** Visual CTAs, 0–3 (older briefs: 0). */
+  visualCtas: number;
   deadline: string;
   platform: string[];
   referenceLinks: string[];
@@ -90,6 +94,7 @@ export type BriefField =
   | "purpose"
   | "style"
   | "hookCount"
+  | "visualCtas"
   | "deadline"
   | "platform"
   | "referenceLinks"
@@ -140,6 +145,10 @@ export function validateBrief(
     style: pick(input.style, STYLE_OPTIONS),
     hookVariants: hookCount > 1,
     hookCount,
+    visualCtas: (() => {
+      const n = Math.round(Number(input.visualCtas ?? 0));
+      return Number.isFinite(n) ? n : NaN;
+    })(),
     deadline: str(input.deadline, 10),
     platform: pick(input.platform, PLATFORM_OPTIONS),
     referenceLinks: Array.isArray(input.referenceLinks)
@@ -161,6 +170,9 @@ export function validateBrief(
   if (brief.style.length > STYLE_MAX) errors.style = `Pick up to ${STYLE_MAX}.`;
   if (!(Number(brief.hookCount) >= HOOKS_MIN && Number(brief.hookCount) <= HOOKS_MAX)) {
     errors.hookCount = `Choose between ${HOOKS_MIN} and ${HOOKS_MAX}.`;
+  }
+  if (!(brief.visualCtas >= 0 && brief.visualCtas <= VISUAL_CTAS_MAX)) {
+    errors.visualCtas = `Choose between 0 and ${VISUAL_CTAS_MAX}.`;
   }
   if (!brief.deadline) errors.deadline = "Choose when you need it by.";
   else if (!/^\d{4}-\d{2}-\d{2}$/.test(brief.deadline) || Number.isNaN(Date.parse(brief.deadline))) {
@@ -186,8 +198,10 @@ export function parseBrief(json: string): Brief | null {
     if (!data || typeof data !== "object" || data.version !== 1) return null;
     // Read stored answers as-is; validation rules may have changed since they were saved.
     const { brief } = validateBrief(data, "0000-00-00");
-    const count = Number(data.hookCount) || (data.hookVariants === false ? 1 : null);
-    return { ...brief, hookCount: count, hookVariants: (count ?? 1) > 1 };
+    const raw = Number(data.hookCount);
+    const count = Number.isFinite(raw) && data.hookCount !== undefined && data.hookCount !== null ? raw : data.hookVariants === false ? 1 : null;
+    const ctas = Number(data.visualCtas);
+    return { ...brief, hookCount: count, hookVariants: (count ?? 0) > 1, visualCtas: Number.isFinite(ctas) ? ctas : 0 };
   } catch {
     return null;
   }
@@ -227,7 +241,11 @@ export function briefRows(brief: Brief): { label: string; values: string[]; link
     { label: "Style / tone", values: labelsFor(brief.style, STYLE_OPTIONS) },
     {
       label: "Visual hooks",
-      values: brief.hookCount ? [brief.hookCount > 1 ? `${brief.hookCount} visual hook variants` : "1 visual hook"] : [],
+      values: brief.hookCount ? [brief.hookCount > 1 ? `${brief.hookCount} visual hooks` : "1 visual hook"] : ["Off"],
+    },
+    {
+      label: "Visual CTAs",
+      values: brief.visualCtas ? [brief.visualCtas > 1 ? `${brief.visualCtas} visual CTAs` : "1 visual CTA"] : ["Off"],
     },
     { label: "Platform", values: labelsFor(brief.platform, PLATFORM_OPTIONS) },
     { label: "Reference links", values: brief.referenceLinks, links: true },
